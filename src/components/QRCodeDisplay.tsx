@@ -19,6 +19,7 @@ export function QRCodeDisplay({ data, size = 256 }: QRCodeDisplayProps) {
         {
           width: size,
           margin: 2,
+          errorCorrectionLevel: 'H', // High error correction for better scanning
           color: {
             dark: '#000000',
             light: '#FFFFFF',

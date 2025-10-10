@@ -28,6 +28,12 @@ export function QRScanner({ onScan, onError, onClose }: QRScannerProps) {
           qrbox: 250, // Use number instead of object for better mobile compatibility
           aspectRatio: 1.0,
           disableFlip: false, // Enable flip for better scanning
+          // Advanced scanning settings for better detection
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true // Use native barcode detector if available
+          },
+          // More verbose error reporting during development
+          verbose: false,
         };
 
         // Try to get camera permission first
