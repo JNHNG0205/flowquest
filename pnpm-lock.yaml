@@ -69,6 +69,9 @@ importers:
       '@types/react-dom':
         specifier: ^19
         version: 19.1.9(@types/react@19.1.15)
+      '@types/react-qr-reader':
+        specifier: ^2.1.7
+        version: 2.1.7
       eslint:
         specifier: ^9
         version: 9.36.0(jiti@2.6.0)
@@ -522,6 +525,9 @@ packages:
     resolution: {integrity: sha512-qXRuZaOsAdXKFyOhRBg6Lqqc0yay13vN7KrIg4L7N4aaHN68ma9OK3NE1BoDFgFOTfM7zg+3/8+2n8rLUH3OKQ==}
     peerDependencies:
       '@types/react': ^19.0.0
+
+  '@types/react-qr-reader@2.1.7':
+    resolution: {integrity: sha512-6K6DQeqP7c2oohcfvBpExlOawVsB2/C+7ZZL/fkCkNzYYAKDJnNHnuP3F5ChMl0mpoYEdqkqkllxqfM0VslEiw==}
 
   '@types/react@19.1.15':
     resolution: {integrity: sha512-+kLxJpaJzXybyDyFXYADyP1cznTO8HSuBpenGlnKOAkH4hyNINiywvXS/tGJhsrGGP/gM185RA3xpjY0Yg4erA==}
@@ -2452,6 +2458,10 @@ snapshots:
       '@types/node': 20.19.17
 
   '@types/react-dom@19.1.9(@types/react@19.1.15)':
+    dependencies:
+      '@types/react': 19.1.15
+
+  '@types/react-qr-reader@2.1.7':
     dependencies:
       '@types/react': 19.1.15
 
