@@ -36,8 +36,9 @@ function JoinRoomContent() {
         throw new Error(data.error || 'Failed to join room');
       }
 
-      // Navigate to game page
-      router.push(`/game/${data.data.session.room_id}`);
+      // Navigate to waiting room (room/create shows waiting room for all players)
+      // We'll create a generic waiting room that works for both host and joiners
+      router.push(`/room/${data.data.session.room_id}`);
     } catch (err) {
       console.error('Join room error:', err);
       setError(err instanceof Error ? err.message : 'Failed to join room');

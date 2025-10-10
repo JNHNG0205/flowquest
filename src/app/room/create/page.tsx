@@ -59,6 +59,9 @@ export default function CreateRoomPage() {
       setSession(data.data.session);
       setCurrentPlayer(data.data.player);
       setHasCreated(true);
+      
+      // Redirect to waiting room
+      router.push(`/room/${data.data.session.room_id}`);
     } catch (err) {
       console.error('Create room error:', err);
       setError(err instanceof Error ? err.message : 'Failed to create room');
