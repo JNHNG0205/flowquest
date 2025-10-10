@@ -143,7 +143,15 @@ export default function GamePage() {
         throw new Error(result.error || 'Failed to fetch question');
       }
 
-      setCurrentQuestion(result.data);
+      // result.data contains {session_question, question, time_limit}
+      // Combine question with metadata
+      const questionData = {
+        ...result.data.question,
+        room_question_id: result.data.session_question.room_question_id,
+        time_limit: result.data.time_limit,
+      };
+      
+      setCurrentQuestion(questionData);
     } catch (error) {
       console.error('Tile scan error:', error);
       alert(error instanceof Error ? error.message : 'Failed to load question');
