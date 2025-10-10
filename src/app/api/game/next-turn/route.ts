@@ -4,7 +4,7 @@ import { cookies } from 'next/headers';
 
 /**
  * POST /api/game/next-turn
- * Advance to the next turn (simplified - just acknowledge completion)
+ * Advance to the next player's turn, incrementing turn number when all players have played
  */
 export async function POST(request: NextRequest) {
   try {
@@ -30,16 +30,51 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get session
+    // Get session and players
     const { data: session } = await supabase
       .from('rooms')
-      .select()
+      .select('*, room_players(*)')
       .eq('room_id', sessionId)
       .single();
 
+    if (!session) {
+      return NextResponse.json(
+        { error: 'Session not found' },
+        { status: 404 }
+      );
+    }
+
+    // Calculate next player index
+    const playerCount = session.room_players?.length || 0;
+    const currentPlayerIndex = session.current_player_index || 0;
+    const nextPlayerIndex = (currentPlayerIndex + 1) % playerCount;
+    
+    // If we've looped back to 0, increment the turn
+    const currentTurn = session.current_turn || 0;
+    const nextTurn = nextPlayerIndex === 0 ? currentTurn + 1 : currentTurn;
+
+    // Update the session
+    const { data: updatedSession, error: updateError } = await supabase
+      .from('rooms')
+      .update({
+        current_player_index: nextPlayerIndex,
+        current_turn: nextTurn,
+      })
+      .eq('room_id', sessionId)
+      .select()
+      .single();
+
+    if (updateError) {
+      throw new Error(`Failed to update turn: ${updateError.message}`);
+    }
+
     return NextResponse.json({
       success: true,
-      data: { session },
+      data: { 
+        session: updatedSession,
+        nextPlayerIndex,
+        nextTurn,
+      },
     });
   } catch (error) {
     console.error('Next turn error:', error);

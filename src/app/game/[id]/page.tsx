@@ -184,11 +184,9 @@ export default function GamePage() {
       setLastResult(result.data);
       setShowResults(true);
 
-      // Wait for other players or advance turn after delay
+      // Advance turn after showing results
       setTimeout(() => {
-        if (isMyTurn()) {
-          advanceTurn();
-        }
+        advanceTurn();
       }, 3000);
     } catch (error) {
       console.error('Submit answer error:', error);
@@ -311,7 +309,7 @@ export default function GamePage() {
               <div className="bg-white rounded-lg shadow-lg p-8 text-center">
                 <div className="animate-pulse text-4xl mb-4">⏳</div>
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                  Waiting for Player&apos;s turn
+                  Waiting for Player {((session.current_player_index || 0) + 1)}&apos;s turn
                 </h2>
                 <p className="text-gray-600">It&apos;s their turn to play</p>
               </div>
