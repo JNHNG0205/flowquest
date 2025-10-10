@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { QrReader } from 'react-qr-reader';
+import { QrReader, OnResultFunction } from 'react-qr-reader';
 
 interface QRScannerProps {
   onScan: (data: string) => void;
@@ -13,20 +13,21 @@ export function QRScanner({ onScan, onError, onClose }: QRScannerProps) {
   const [error, setError] = useState<string>('');
   const [hasScanned, setHasScanned] = useState(false);
 
-  const handleScan = (result: any) => {
+  const handleScan: OnResultFunction = (result, error) => {
+    if (error) {
+      console.error('QR Scanner error:', error);
+      const errorMsg = error?.message || 'Camera access denied or not available';
+      setError(errorMsg);
+      if (onError) onError(errorMsg);
+      return;
+    }
+
     if (result && !hasScanned) {
       setHasScanned(true);
-      const text = result?.text || result;
+      const text = result.getText();
       console.log('QR Code decoded:', text);
       onScan(text);
     }
-  };
-
-  const handleError = (error: any) => {
-    console.error('QR Scanner error:', error);
-    const errorMsg = error?.message || 'Camera access denied or not available';
-    setError(errorMsg);
-    if (onError) onError(errorMsg);
   };
 
   return (

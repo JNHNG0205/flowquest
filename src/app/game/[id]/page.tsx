@@ -224,8 +224,6 @@ export default function GamePage() {
     );
   }
 
-  const currentTurnPlayer = players[session.current_player_index || 0];
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 p-4">
       <div className="max-w-6xl mx-auto py-8">
