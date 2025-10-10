@@ -61,6 +61,11 @@ export default function WaitingRoomPage() {
       if (realtimeSession.status === 'in_progress') {
         router.push(`/game/${realtimeSession.room_id}`);
       }
+      
+      // Redirect to home if room becomes inactive (all players left)
+      if (!realtimeSession.is_active) {
+        router.push('/');
+      }
     }
   }, [realtimeSession, router]);
 
@@ -101,6 +106,32 @@ export default function WaitingRoomPage() {
       console.error('Start game error:', err);
       setError(err instanceof Error ? err.message : 'Failed to start game');
     } finally {
+      setLoading(false);
+    }
+  };
+
+  const leaveRoom = async () => {
+    if (!session) return;
+
+    try {
+      setLoading(true);
+
+      const response = await fetch('/api/rooms/leave', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomId: session.room_id }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to leave room');
+      }
+
+      // Redirect to home after leaving
+      router.push('/');
+    } catch (err) {
+      console.error('Leave room error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to leave room');
       setLoading(false);
     }
   };
@@ -256,10 +287,11 @@ export default function WaitingRoomPage() {
 
             {/* Leave Room Button */}
             <button
-              onClick={() => router.push('/')}
-              className="w-full mt-4 bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 transition-colors"
+              onClick={leaveRoom}
+              disabled={loading}
+              className="w-full mt-4 bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
             >
-              Leave Room
+              {loading ? 'Leaving...' : 'Leave Room'}
             </button>
           </div>
         </div>
