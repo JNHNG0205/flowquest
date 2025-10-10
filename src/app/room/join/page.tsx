@@ -12,15 +12,6 @@ function JoinRoomContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Check if room code is in URL
-  useEffect(() => {
-    const code = searchParams.get('code');
-    if (code) {
-      setRoomCode(code);
-      joinRoom(code);
-    }
-  }, [searchParams]);
-
   const joinRoom = async (code?: string) => {
     const codeToJoin = code || roomCode;
     
@@ -46,7 +37,7 @@ function JoinRoomContent() {
       }
 
       // Navigate to game page
-      router.push(`/game/${data.data.session.id}`);
+      router.push(`/game/${data.data.session.room_id}`);
     } catch (err) {
       console.error('Join room error:', err);
       setError(err instanceof Error ? err.message : 'Failed to join room');
@@ -54,6 +45,16 @@ function JoinRoomContent() {
       setLoading(false);
     }
   };
+
+  // Check if room code is in URL
+  useEffect(() => {
+    const code = searchParams.get('code');
+    if (code) {
+      setRoomCode(code);
+      joinRoom(code);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const handleQRScan = (data: string) => {
     console.log('QR Scanned:', data);
