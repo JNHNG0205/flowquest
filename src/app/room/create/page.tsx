@@ -59,8 +59,7 @@ export default function CreateRoomPage() {
       setSession(data.data.session);
       setCurrentPlayer(data.data.player);
       setHasCreated(true);
-      
-      // Redirect to waiting room
+      // Redirect to the waiting room
       router.push(`/room/${data.data.session.room_id}`);
     } catch (err) {
       console.error('Create room error:', err);
