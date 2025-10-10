@@ -12,57 +12,75 @@ interface QRScannerProps {
 export function QRScanner({ onScan, onError, onClose }: QRScannerProps) {
   const [error, setError] = useState<string>('');
   const [isScanning, setIsScanning] = useState(false);
+  const [permissionDenied, setPermissionDenied] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const hasScannedRef = useRef(false);
 
   useEffect(() => {
-    const scanner = new Html5Qrcode('qr-reader');
-    scannerRef.current = scanner;
+    const startScanner = async () => {
+      try {
+        const scanner = new Html5Qrcode('qr-reader');
+        scannerRef.current = scanner;
 
-    const config = {
-      fps: 10,
-      qrbox: { width: 250, height: 250 },
-      aspectRatio: 1.0,
-    };
+        // Better config for mobile
+        const config = {
+          fps: 10,
+          qrbox: 250, // Use number instead of object for better mobile compatibility
+          aspectRatio: 1.0,
+          disableFlip: false, // Enable flip for better scanning
+        };
 
-    // Start scanning
-    scanner
-      .start(
-        { facingMode: 'environment' }, // Use back camera
-        config,
-        (decodedText) => {
-          // Success callback - only process once
-          if (!hasScannedRef.current) {
-            hasScannedRef.current = true;
-            console.log('QR Code decoded:', decodedText);
-            onScan(decodedText);
-            
-            // Stop scanner after successful scan
-            scanner.stop().then(() => {
-              scanner.clear();
-            }).catch(console.error);
-          }
-        },
-        (errorMessage) => {
-          // Error callback - fires frequently, ignore most errors
-          // Only log actual problems, not "No QR code found" messages
+        // Try to get camera permission first
+        try {
+          await navigator.mediaDevices.getUserMedia({ video: true });
+        } catch (permError) {
+          console.error('Permission error:', permError);
+          setPermissionDenied(true);
+          const errorMsg = 'Camera permission denied. Please allow camera access and reload.';
+          setError(errorMsg);
+          if (onError) onError(errorMsg);
+          return;
         }
-      )
-      .then(() => {
+
+        // Start scanning with better error handling
+        await scanner.start(
+          { facingMode: 'environment' }, // Use back camera
+          config,
+          (decodedText) => {
+            // Success callback - only process once
+            if (!hasScannedRef.current) {
+              hasScannedRef.current = true;
+              console.log('QR Code decoded:', decodedText);
+              onScan(decodedText);
+              
+              // Stop scanner after successful scan
+              scanner.stop().then(() => {
+                scanner.clear();
+              }).catch(console.error);
+            }
+          },
+          (errorMessage) => {
+            // Error callback - fires frequently during scanning
+            // Ignore "NotFoundException" which just means no QR code found yet
+          }
+        );
+
         setIsScanning(true);
-      })
-      .catch((err) => {
+      } catch (err) {
         console.error('Failed to start scanner:', err);
-        const errorMsg = 'Camera access denied. Please allow camera permissions in your browser settings.';
+        const errorMsg = err instanceof Error ? err.message : 'Failed to start camera. Please check permissions.';
         setError(errorMsg);
         if (onError) onError(errorMsg);
-      });
+      }
+    };
+
+    startScanner();
 
     // Cleanup on unmount
     return () => {
-      if (scanner.isScanning) {
-        scanner.stop().then(() => {
-          scanner.clear();
+      if (scannerRef.current?.isScanning) {
+        scannerRef.current.stop().then(() => {
+          scannerRef.current?.clear();
         }).catch(console.error);
       }
     };
@@ -119,30 +137,56 @@ export function QRScanner({ onScan, onError, onClose }: QRScannerProps) {
 
         {/* Error Message */}
         {error && (
-          <div className="mt-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">
-            <p className="font-semibold mb-1">❌ Camera Error</p>
-            <p>{error}</p>
-            <div className="mt-2 text-xs space-y-1">
-              <p><strong>How to fix:</strong></p>
-              <p>1. Go to browser Settings → Site Settings</p>
-              <p>2. Find Camera permissions</p>
-              <p>3. Allow camera access for this site</p>
-              <p>4. Reload the page</p>
-            </div>
+          <div className="mt-4 p-4 bg-red-100 border-2 border-red-300 text-red-800 rounded-lg text-sm">
+            <p className="font-bold mb-2 text-base">❌ Camera Error</p>
+            <p className="mb-3">{error}</p>
+            
+            {permissionDenied ? (
+              <div className="bg-white p-3 rounded border border-red-200 space-y-2 text-xs">
+                <p className="font-semibold text-red-900">📱 On Mobile:</p>
+                <ol className="list-decimal ml-4 space-y-1">
+                  <li>Tap the 🔒 or (i) icon in your browser&apos;s address bar</li>
+                  <li>Find &quot;Camera&quot; and set it to &quot;Allow&quot;</li>
+                  <li>Refresh this page</li>
+                </ol>
+                <p className="font-semibold text-red-900 mt-3">💻 On Desktop:</p>
+                <ol className="list-decimal ml-4 space-y-1">
+                  <li>Click the camera icon in the address bar</li>
+                  <li>Select &quot;Always allow camera&quot;</li>
+                  <li>Refresh this page</li>
+                </ol>
+              </div>
+            ) : (
+              <div className="bg-white p-3 rounded border border-red-200 text-xs space-y-1">
+                <p className="font-semibold">Common fixes:</p>
+                <p>• Close other apps using the camera</p>
+                <p>• Use HTTPS (camera requires secure connection)</p>
+                <p>• Try Chrome or Safari browser</p>
+                <p>• Restart your browser</p>
+              </div>
+            )}
           </div>
         )}
 
         {/* Instructions */}
         {isScanning && !error && (
-          <div className="mt-4 space-y-2">
-            <p className="text-sm text-gray-700 text-center font-medium">
-              📱 Position the QR code within the scanning box
+          <div className="mt-4 p-3 bg-green-50 border-2 border-green-200 rounded-lg space-y-2">
+            <p className="text-sm text-green-900 text-center font-bold flex items-center justify-center gap-2">
+              <span className="text-2xl">✓</span>
+              Camera Active - Ready to Scan!
             </p>
-            <div className="text-xs text-gray-500 text-center space-y-1">
-              <p>✓ Make sure the QR code is well-lit</p>
-              <p>✓ Hold your device steady</p>
-              <p>✓ Keep QR code within the red box</p>
+            <div className="text-xs text-green-800 space-y-1 text-center">
+              <p>📱 Position QR code in the red scanning box</p>
+              <p>💡 Ensure good lighting and hold steady</p>
+              <p>🎯 Keep QR code clear and in focus</p>
             </div>
+          </div>
+        )}
+
+        {/* Debug Info */}
+        {isScanning && !error && (
+          <div className="mt-2 text-xs text-gray-500 text-center">
+            Scanning... Move QR code closer or further if not detected
           </div>
         )}
 
