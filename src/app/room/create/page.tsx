@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/utils/supabase/client';
 import { QRCodeDisplay } from '@/components/QRCodeDisplay';
 import { useGameRealtime } from '@/hooks/useGameRealtime';
 import type { GameSession, SessionPlayer } from '@/types/database.types';
@@ -17,6 +16,18 @@ export default function CreateRoomPage() {
 
   const { session: realtimeSession, players } = useGameRealtime(session?.room_id || null);
 
+  // Memoized room URL to prevent unnecessary recalculations
+  const roomUrl = useMemo(() => {
+    if (!session || typeof window === 'undefined') return '';
+    return `${window.location.origin}/room/join?code=${session.room_code}`;
+  }, [session]);
+
+  // Memoized player count for optimization
+  const playerCount = useMemo(() => players.length, [players.length]);
+
+  // Memoized check if minimum players met
+  const canStartGame = useMemo(() => playerCount >= 2, [playerCount]);
+
   // Update session when realtime updates
   useEffect(() => {
     if (realtimeSession) {
@@ -27,7 +38,7 @@ export default function CreateRoomPage() {
     }
   }, [realtimeSession, router]);
 
-  const createRoom = async () => {
+  const createRoom = useCallback(async () => {
     // Prevent multiple room creation
     if (hasCreated || session) return;
     
@@ -54,9 +65,9 @@ export default function CreateRoomPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [hasCreated, session]);
 
-  const startGame = async () => {
+  const startGame = useCallback(async () => {
     if (!session) return;
 
     try {
@@ -82,15 +93,14 @@ export default function CreateRoomPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [session]);
 
   // Only create room once on mount
   useEffect(() => {
     if (!hasCreated && !session) {
       createRoom();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [createRoom, hasCreated, session]);
 
   if (!session) {
     return (
@@ -102,8 +112,6 @@ export default function CreateRoomPage() {
       </div>
     );
   }
-
-  const roomUrl = `${window.location.origin}/room/join?code=${session.room_code}`;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 p-4">
@@ -142,7 +150,7 @@ export default function CreateRoomPage() {
         {/* Players List */}
         <div className="bg-white rounded-xl shadow-2xl p-8 mb-6">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">
-            Players ({players.length})
+            Players ({playerCount})
           </h2>
           <div className="space-y-3">
             {players.map((player, index) => (
@@ -178,13 +186,13 @@ export default function CreateRoomPage() {
         {/* Start Game Button */}
         <button
           onClick={startGame}
-          disabled={loading || players.length < 2}
+          disabled={loading || !canStartGame}
           className="w-full bg-green-600 text-white py-4 rounded-lg font-bold text-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
         >
-          {loading ? 'Starting...' : players.length < 2 ? 'Waiting for players...' : 'Start Game'}
+          {loading ? 'Starting...' : !canStartGame ? 'Waiting for players...' : 'Start Game'}
         </button>
 
-        {players.length < 2 && (
+        {!canStartGame && (
           <p className="text-white text-center mt-4 text-sm">
             Need at least 2 players to start
           </p>
