@@ -31,7 +31,7 @@ export function useGameRealtime(roomId: string | null) {
         .from('room_players')
         .select('*')
         .eq('room_id', roomId)
-        .order('score', { ascending: false });
+        .order('room_player_id', { ascending: true }); // Use stable order, not score!
 
       if (roomData) setSession(roomData);
       if (playersData) setPlayers(playersData);
@@ -72,7 +72,7 @@ export function useGameRealtime(roomId: string | null) {
             .from('room_players')
             .select('*')
             .eq('room_id', roomId)
-            .order('score', { ascending: false });
+            .order('room_player_id', { ascending: true }); // Use stable order, not score!
 
           if (playersData) setPlayers(playersData);
         }

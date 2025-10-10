@@ -30,22 +30,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get session and players
-    const { data: session } = await supabase
+    // Get session and players (ordered consistently by join order)
+    const { data: session, error: sessionError } = await supabase
       .from('rooms')
-      .select('*, room_players(*)')
+      .select('*')
       .eq('room_id', sessionId)
       .single();
 
-    if (!session) {
+    if (sessionError || !session) {
       return NextResponse.json(
         { error: 'Session not found' },
         { status: 404 }
       );
     }
 
+    // Get players ordered by room_player_id (consistent order)
+    const { data: players } = await supabase
+      .from('room_players')
+      .select('*')
+      .eq('room_id', sessionId)
+      .order('room_player_id', { ascending: true });
+
     // Calculate next player index
-    const playerCount = session.room_players?.length || 0;
+    const playerCount = players?.length || 0;
     const currentPlayerIndex = session.current_player_index || 0;
     const nextPlayerIndex = (currentPlayerIndex + 1) % playerCount;
     
