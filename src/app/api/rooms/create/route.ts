@@ -21,6 +21,30 @@ export async function POST() {
       );
     }
 
+    // Check if user already has an active room as host
+    const { data: existingRoom } = await supabase
+      .from('rooms')
+      .select('*')
+      .eq('host_id', user.id)
+      .eq('is_active', true)
+      .eq('status', 'waiting')
+      .single();
+
+    if (existingRoom) {
+      // Return existing room instead of creating new one
+      const { data: player } = await supabase
+        .from('room_players')
+        .select('*')
+        .eq('room_id', existingRoom.room_id)
+        .eq('user_id', user.id)
+        .single();
+
+      return NextResponse.json({
+        success: true,
+        data: { session: existingRoom, player },
+      });
+    }
+
     // Create game session
     const { session, player } = await createGameSession(user.id);
 

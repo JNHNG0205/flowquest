@@ -12,6 +12,7 @@ export default function CreateRoomPage() {
   const [error, setError] = useState('');
   const [session, setSession] = useState<GameSession | null>(null);
   const [currentPlayer, setCurrentPlayer] = useState<SessionPlayer | null>(null);
+  const [hasCreated, setHasCreated] = useState(false);
   const router = useRouter();
 
   const { session: realtimeSession, players } = useGameRealtime(session?.room_id || null);
@@ -27,6 +28,9 @@ export default function CreateRoomPage() {
   }, [realtimeSession, router]);
 
   const createRoom = async () => {
+    // Prevent multiple room creation
+    if (hasCreated || session) return;
+    
     try {
       setLoading(true);
       setError('');
@@ -43,6 +47,7 @@ export default function CreateRoomPage() {
 
       setSession(data.data.session);
       setCurrentPlayer(data.data.player);
+      setHasCreated(true);
     } catch (err) {
       console.error('Create room error:', err);
       setError(err instanceof Error ? err.message : 'Failed to create room');
@@ -79,8 +84,12 @@ export default function CreateRoomPage() {
     }
   };
 
+  // Only create room once on mount
   useEffect(() => {
-    createRoom();
+    if (!hasCreated && !session) {
+      createRoom();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (!session) {

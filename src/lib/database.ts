@@ -49,6 +49,9 @@ export async function createGameSession(hostId: string): Promise<{ session: Room
       room_code: roomCode,
       host_id: hostId,
       is_active: true,
+      status: 'waiting',
+      current_turn: 0,
+      current_player_index: 0,
     })
     .select()
     .single();
@@ -91,10 +94,11 @@ export async function joinGameSession(
     .select()
     .eq('room_code', roomCode)
     .eq('is_active', true)
+    .eq('status', 'waiting')
     .single();
 
   if (roomError || !room) {
-    throw new Error('Room not found or game already ended');
+    throw new Error('Room not found or game already started');
   }
 
   // Check if user already joined
