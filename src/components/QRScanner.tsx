@@ -22,23 +22,30 @@ export function QRScanner({ onScan, onError, onClose }: QRScannerProps) {
         const scanner = new Html5Qrcode('qr-reader');
         scannerRef.current = scanner;
 
-        // Better config for mobile
+        // Better config for mobile (especially iOS)
         const config = {
           fps: 10,
-          qrbox: 250, // Use number instead of object for better mobile compatibility
+          qrbox: 250,
           aspectRatio: 1.0,
-          disableFlip: false, // Enable flip for better scanning
-          // Advanced scanning settings for better detection
-          experimentalFeatures: {
-            useBarCodeDetectorIfSupported: true // Use native barcode detector if available
-          },
-          // More verbose error reporting during development
-          verbose: false,
+          disableFlip: false,
+          // iOS-specific settings
+          videoConstraints: {
+            facingMode: 'environment',
+            focusMode: 'continuous' // Better for iOS
+          }
         };
 
-        // Try to get camera permission first
+        // Try to get camera permission first (iOS-specific approach)
         try {
-          await navigator.mediaDevices.getUserMedia({ video: true });
+          const stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { 
+              facingMode: 'environment',
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            } 
+          });
+          // Stop the test stream immediately
+          stream.getTracks().forEach(track => track.stop());
         } catch (permError) {
           console.error('Permission error:', permError);
           setPermissionDenied(true);
@@ -48,28 +55,68 @@ export function QRScanner({ onScan, onError, onClose }: QRScannerProps) {
           return;
         }
 
-        // Start scanning with better error handling
-        await scanner.start(
-          { facingMode: 'environment' }, // Use back camera
-          config,
-          (decodedText) => {
-            // Success callback - only process once
-            if (!hasScannedRef.current) {
-              hasScannedRef.current = true;
-              console.log('QR Code decoded:', decodedText);
-              onScan(decodedText);
-              
-              // Stop scanner after successful scan
-              scanner.stop().then(() => {
-                scanner.clear();
-              }).catch(console.error);
+        // For iOS, we need to request camera access differently
+        // Try to get available cameras first
+        let cameraId: string | undefined;
+        try {
+          const devices = await Html5Qrcode.getCameras();
+          console.log('Available cameras:', devices);
+          
+          // Find back camera (environment facing)
+          const backCamera = devices.find(device => 
+            device.label.toLowerCase().includes('back') || 
+            device.label.toLowerCase().includes('rear') ||
+            device.label.toLowerCase().includes('environment')
+          );
+          
+          cameraId = backCamera?.id || devices[devices.length - 1]?.id;
+          console.log('Selected camera:', backCamera?.label || 'Default camera');
+        } catch (cameraError) {
+          console.error('Error getting cameras:', cameraError);
+        }
+
+        // Start scanning - use camera ID for iOS, constraints for Android
+        if (cameraId) {
+          // iOS approach - use specific camera ID
+          await scanner.start(
+            cameraId,
+            config,
+            (decodedText) => {
+              if (!hasScannedRef.current) {
+                hasScannedRef.current = true;
+                console.log('QR Code decoded:', decodedText);
+                onScan(decodedText);
+                
+                scanner.stop().then(() => {
+                  scanner.clear();
+                }).catch(console.error);
+              }
+            },
+            (errorMessage) => {
+              // Ignore frequent "not found" errors
             }
-          },
-          (errorMessage) => {
-            // Error callback - fires frequently during scanning
-            // Ignore "NotFoundException" which just means no QR code found yet
-          }
-        );
+          );
+        } else {
+          // Android approach - use constraints
+          await scanner.start(
+            { facingMode: 'environment' },
+            config,
+            (decodedText) => {
+              if (!hasScannedRef.current) {
+                hasScannedRef.current = true;
+                console.log('QR Code decoded:', decodedText);
+                onScan(decodedText);
+                
+                scanner.stop().then(() => {
+                  scanner.clear();
+                }).catch(console.error);
+              }
+            },
+            (errorMessage) => {
+              // Ignore frequent "not found" errors
+            }
+          );
+        }
 
         setIsScanning(true);
       } catch (err) {
