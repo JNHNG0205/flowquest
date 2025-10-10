@@ -86,14 +86,14 @@ export default function CreateRoomPage() {
         throw new Error(data.error || 'Failed to start game');
       }
 
-      // Will be redirected by realtime listener
+      // Redirect immediately to game page
+      router.push(`/game/${session.room_id}`);
     } catch (err) {
       console.error('Start game error:', err);
       setError(err instanceof Error ? err.message : 'Failed to start game');
-    } finally {
       setLoading(false);
     }
-  }, [session]);
+  }, [session, router]);
 
   // Only create room once on mount
   useEffect(() => {
