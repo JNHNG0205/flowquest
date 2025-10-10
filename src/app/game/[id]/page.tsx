@@ -8,7 +8,12 @@ import { Scoreboard } from '@/components/Scoreboard';
 import { DiceRoller } from '@/components/DiceRoller';
 import { QuizQuestion } from '@/components/QuizQuestion';
 import { QRScanner } from '@/components/QRScanner';
-import type { SessionPlayer} from '@/types/database.types';
+import type { SessionPlayer, Question} from '@/types/database.types';
+
+interface CurrentQuestion extends Question {
+  room_question_id?: string;
+  time_limit: number;
+}
 
 export default function GamePage() {
   const params = useParams();
@@ -16,18 +21,25 @@ export default function GamePage() {
   const sessionId = params.id as string;
   const supabase = createClient();
 
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
   const [currentPlayer, setCurrentPlayer] = useState<SessionPlayer | null>(null);
   const [showScanner, setShowScanner] = useState(false);
-  const [showDice, setShowDice] = useState(false);
   const [diceValue, setDiceValue] = useState<number | null>(null);
-  const [currentQuestion, setCurrentQuestion] = useState<any>(null);
+  const [currentQuestion, setCurrentQuestion] = useState<CurrentQuestion | null>(null);
   const [showResults, setShowResults] = useState(false);
-  const [lastResult, setLastResult] = useState<any>(null);
+  const [lastResult, setLastResult] = useState<{ 
+    correct?: boolean;
+    is_correct?: boolean; 
+    pointsEarned?: number;
+    points_earned?: number; 
+    correctAnswer?: string;
+    correct_answer?: string;
+    explanation?: string;
+  } | null>(null);
   const [loading, setLoading] = useState(false);
 
   const { session, players } = useGameRealtime(sessionId);
-  const { currentQuestion: realtimeQuestion, answers } = useQuizRealtime(sessionId);
+  const { currentQuestion: realtimeQuestion } = useQuizRealtime(sessionId);
 
   // Get current user
   useEffect(() => {
@@ -36,7 +48,7 @@ export default function GamePage() {
       setCurrentUser(user);
     };
     getUser();
-  }, []);
+  }, [supabase.auth]);
 
   // Find current player
   useEffect(() => {
@@ -49,9 +61,8 @@ export default function GamePage() {
   // Update question from realtime
   useEffect(() => {
     if (realtimeQuestion) {
-      setCurrentQuestion(realtimeQuestion);
+      setCurrentQuestion(realtimeQuestion as CurrentQuestion);
       setShowResults(false);
-      setShowDice(false);
       setDiceValue(null);
     }
   }, [realtimeQuestion]);
@@ -64,7 +75,6 @@ export default function GamePage() {
 
   const handleDiceRoll = async (value: number) => {
     setDiceValue(value);
-    setShowDice(false);
 
     if (!currentPlayer) return;
 
@@ -150,7 +160,7 @@ export default function GamePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sessionQuestionId: currentQuestion.room_question_id || currentQuestion.id,
+          sessionQuestionId: currentQuestion.room_question_id || currentQuestion.question_id,
           playerId: currentPlayer.room_player_id,
           answer,
           timeTaken,
@@ -217,7 +227,7 @@ export default function GamePage() {
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-white mb-2">FlowQuest</h1>
           <div className="text-white/90">
-            Round {(session.current_turn || 0) + 1} - Player {((session.current_player_index || 0) + 1)}'s turn
+            Round {(session.current_turn || 0) + 1} - Player {((session.current_player_index || 0) + 1)}&apos;s turn
             {isMyTurn() && <span className="ml-2 font-bold">(Your Turn!)</span>}
           </div>
         </div>
@@ -229,7 +239,7 @@ export default function GamePage() {
             {currentQuestion && !showResults && (
               <div className="flex justify-center">
                 <QuizQuestion
-                  question={currentQuestion.question}
+                  question={currentQuestion}
                   timeLimit={currentQuestion.time_limit}
                   onSubmit={handleSubmitAnswer}
                   disabled={!isMyTurn()}
@@ -243,24 +253,24 @@ export default function GamePage() {
                 <div className="text-center">
                   <div
                     className={`text-6xl mb-4 ${
-                      lastResult.is_correct ? '🎉' : '😞'
+                      (lastResult.is_correct || lastResult.correct) ? '🎉' : '😞'
                     }`}
                   >
-                    {lastResult.is_correct ? '🎉' : '😞'}
+                    {(lastResult.is_correct || lastResult.correct) ? '🎉' : '😞'}
                   </div>
                   <h2
                     className={`text-3xl font-bold mb-2 ${
-                      lastResult.is_correct ? 'text-green-600' : 'text-red-600'
+                      (lastResult.is_correct || lastResult.correct) ? 'text-green-600' : 'text-red-600'
                     }`}
                   >
-                    {lastResult.is_correct ? 'Correct!' : 'Incorrect'}
+                    {(lastResult.is_correct || lastResult.correct) ? 'Correct!' : 'Incorrect'}
                   </h2>
                   <p className="text-2xl text-gray-900 mb-4">
-                    +{lastResult.points_earned} points
+                    +{lastResult.points_earned || lastResult.pointsEarned || 0} points
                   </p>
-                  {!lastResult.is_correct && (
+                  {!(lastResult.is_correct || lastResult.correct) && (
                     <p className="text-gray-700 mb-2">
-                      Correct answer: <strong>{lastResult.correct_answer}</strong>
+                      Correct answer: <strong>{lastResult.correct_answer || lastResult.correctAnswer}</strong>
                     </p>
                   )}
                   {lastResult.explanation && (
@@ -293,9 +303,9 @@ export default function GamePage() {
               <div className="bg-white rounded-lg shadow-lg p-8 text-center">
                 <div className="animate-pulse text-4xl mb-4">⏳</div>
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                  Waiting for Player's turn
+                  Waiting for Player&apos;s turn
                 </h2>
-                <p className="text-gray-600">It's their turn to play</p>
+                <p className="text-gray-600">It&apos;s their turn to play</p>
               </div>
             )}
           </div>

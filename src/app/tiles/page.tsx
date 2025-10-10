@@ -114,7 +114,7 @@ export default function GenerateTilesPage() {
           <h3 className="text-xl font-bold mb-4">Instructions</h3>
           <ol className="list-decimal list-inside space-y-2">
             <li>Enter the number of tiles you want to create</li>
-            <li>Click "Generate" to create QR codes</li>
+            <li>Click &quot;Generate&quot; to create QR codes</li>
             <li>Download individual tiles or all at once</li>
             <li>Print the QR codes</li>
             <li>Laminate for durability (recommended)</li>

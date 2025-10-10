@@ -3,7 +3,12 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import type { Room, RoomPlayer } from '@/types/database.types';
+import type { Room, RoomPlayer, Question } from '@/types/database.types';
+
+interface CurrentQuestion extends Question {
+  room_question_id?: string;
+  time_limit: number;
+}
 
 export function useGameRealtime(roomId: string | null) {
   const [session, setSession] = useState<Room | null>(null);
@@ -85,8 +90,8 @@ export function useGameRealtime(roomId: string | null) {
 }
 
 export function useQuizRealtime(roomId: string | null) {
-  const [currentQuestion, setCurrentQuestion] = useState<any>(null);
-  const [answers, setAnswers] = useState<Record<string, any>>({});
+  const [currentQuestion, setCurrentQuestion] = useState<CurrentQuestion | null>(null);
+  const [answers, setAnswers] = useState<Record<string, { answer: string; room_player_id: string }>>({});
   const supabase = createClient();
 
   useEffect(() => {

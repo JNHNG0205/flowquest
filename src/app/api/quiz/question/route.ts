@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { sessionId, roundNumber, tilePosition, difficulty } = body;
+    const { sessionId, roundNumber, difficulty } = body;
 
     if (!sessionId || roundNumber === undefined) {
       return NextResponse.json(
@@ -46,6 +46,7 @@ export async function POST(request: NextRequest) {
     const timeLimit = getTimeLimit(question.difficulty);
 
     // Don't send correct answer to client
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { correct_answer, ...questionWithoutAnswer } = question;
 
     return NextResponse.json({

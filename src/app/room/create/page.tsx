@@ -13,7 +13,6 @@ export default function CreateRoomPage() {
   const [session, setSession] = useState<GameSession | null>(null);
   const [currentPlayer, setCurrentPlayer] = useState<SessionPlayer | null>(null);
   const router = useRouter();
-  const supabase = createClient();
 
   const { session: realtimeSession, players } = useGameRealtime(session?.room_id || null);
 

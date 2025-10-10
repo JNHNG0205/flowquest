@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { BorderBeam } from '@/components/ui/border-beam';
 import { GoogleIcon } from '@/components/ui/icon/google';
 
-export default function LoginPage() {
+function LoginForm() {
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -161,7 +161,7 @@ export default function LoginPage() {
 
         <div className="text-center mt-6">
           <p className="text-gray-600 text-sm">
-            Don't have an account?{' '}
+            Don&apos;t have an account?{' '}
             <a 
               href="/signup" 
               className="text-blue-600 hover:text-blue-700 font-medium no-underline"
@@ -173,5 +173,17 @@ export default function LoginPage() {
         <BorderBeam colorFrom="#0000ff" colorTo="yellow" size={400} duration={6}/>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-purple-600 via-blue-600 to-cyan-500 flex items-center justify-center">
+        <div className="text-white text-xl">Loading...</div>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }
