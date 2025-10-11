@@ -21,6 +21,17 @@ export default async function Home() {
     redirect('/login');
   }
 
+  // Check if user has an active room
+  const { data: playerInRoom } = await supabase
+    .from('room_players')
+    .select('room_id, rooms!inner(*)')
+    .eq('user_id', user.id)
+    .eq('rooms.is_active', true)
+    .in('rooms.status', ['waiting', 'in_progress'])
+    .single();
+
+  const activeRoom = playerInRoom?.rooms as any;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center p-4">
       <div className="max-w-4xl w-full">
@@ -33,6 +44,36 @@ export default async function Home() {
             Welcome, {user.user_metadata?.username || user.email}!
           </p>
         </div>
+
+        {/* Show existing room if user has one */}
+        {activeRoom && (
+          <div className="bg-yellow-500/90 rounded-xl shadow-2xl p-6 mb-6">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-2xl">🎮</span>
+                  <h2 className="text-2xl font-bold text-white">
+                    You have an active room
+                  </h2>
+                </div>
+                <p className="text-white/90 mb-3">
+                  Room Code: <span className="font-mono font-bold text-3xl">{activeRoom.room_code}</span>
+                </p>
+                <p className="text-white/80 text-sm">
+                  Status: {activeRoom.status === 'waiting' ? '⏳ Waiting for players' : '🎮 Game in progress'}
+                </p>
+              </div>
+              <Link
+                href={activeRoom.status === 'waiting' 
+                  ? `/room/${activeRoom.room_id}` 
+                  : `/game/${activeRoom.room_id}`}
+                className="bg-white text-yellow-600 px-6 py-3 rounded-lg font-bold hover:bg-yellow-50 transition-colors"
+              >
+                Rejoin Room →
+              </Link>
+            </div>
+          </div>
+        )}
 
         <div className="grid md:grid-cols-2 gap-6">
           {/* Create Room */}

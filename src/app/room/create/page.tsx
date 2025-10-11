@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { createClient } from '@/utils/supabase/client';
 import { QRCodeDisplay } from '@/components/QRCodeDisplay';
 import { useGameRealtime } from '@/hooks/useGameRealtime';
 import type { GameSession, SessionPlayer } from '@/types/database.types';
@@ -12,9 +13,52 @@ export default function CreateRoomPage() {
   const [session, setSession] = useState<GameSession | null>(null);
   const [currentPlayer, setCurrentPlayer] = useState<SessionPlayer | null>(null);
   const [hasCreated, setHasCreated] = useState(false);
+  const [checkingExisting, setCheckingExisting] = useState(true);
   const router = useRouter();
+  const supabase = createClient();
 
   const { session: realtimeSession, players } = useGameRealtime(session?.room_id || null);
+
+  // Check for existing active room on mount
+  useEffect(() => {
+    const checkExistingRoom = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          router.push('/login');
+          return;
+        }
+
+        // Check if user already has an active room
+        const { data: playerInRoom } = await supabase
+          .from('room_players')
+          .select('room_id, rooms!inner(*)')
+          .eq('user_id', user.id)
+          .eq('rooms.is_active', true)
+          .in('rooms.status', ['waiting', 'in_progress'])
+          .single();
+
+        if (playerInRoom && playerInRoom.rooms) {
+          const existingRoom = playerInRoom.rooms as any;
+          // Redirect to existing room
+          if (existingRoom.status === 'waiting') {
+            router.push(`/room/${existingRoom.room_id}`);
+          } else {
+            router.push(`/game/${existingRoom.room_id}`);
+          }
+          return;
+        }
+
+        // No existing room, proceed to create
+        setCheckingExisting(false);
+      } catch (err) {
+        console.error('Error checking existing room:', err);
+        setCheckingExisting(false);
+      }
+    };
+
+    checkExistingRoom();
+  }, [router, supabase]);
 
   // Memoized room URL to prevent unnecessary recalculations
   const roomUrl = useMemo(() => {
@@ -97,19 +141,21 @@ export default function CreateRoomPage() {
     }
   }, [session, router]);
 
-  // Only create room once on mount
+  // Only create room once after checking for existing rooms
   useEffect(() => {
-    if (!hasCreated && !session) {
+    if (!checkingExisting && !hasCreated && !session) {
       createRoom();
     }
-  }, [createRoom, hasCreated, session]);
+  }, [createRoom, hasCreated, session, checkingExisting]);
 
-  if (!session) {
+  if (checkingExisting || !session) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center p-4">
         <div className="bg-white rounded-xl shadow-2xl p-8 max-w-md w-full text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4" />
-          <p className="text-gray-700">Creating room...</p>
+          <p className="text-gray-700">
+            {checkingExisting ? 'Checking for existing rooms...' : 'Creating room...'}
+          </p>
         </div>
       </div>
     );
