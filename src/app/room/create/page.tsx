@@ -14,6 +14,7 @@ export default function CreateRoomPage() {
   const [currentPlayer, setCurrentPlayer] = useState<SessionPlayer | null>(null);
   const [hasCreated, setHasCreated] = useState(false);
   const [checkingExisting, setCheckingExisting] = useState(true);
+  const [existingRoom, setExistingRoom] = useState<any>(null);
   const router = useRouter();
   const supabase = createClient();
 
@@ -39,13 +40,10 @@ export default function CreateRoomPage() {
           .single();
 
         if (playerInRoom && playerInRoom.rooms) {
-          const existingRoom = playerInRoom.rooms as any;
-          // Redirect to existing room
-          if (existingRoom.status === 'waiting') {
-            router.push(`/room/${existingRoom.room_id}`);
-          } else {
-            router.push(`/game/${existingRoom.room_id}`);
-          }
+          const room = playerInRoom.rooms as any;
+          // Don't auto-redirect, show options instead
+          setExistingRoom(room);
+          setCheckingExisting(false);
           return;
         }
 
@@ -141,21 +139,132 @@ export default function CreateRoomPage() {
     }
   }, [session, router]);
 
+  const leaveExistingRoom = async () => {
+    if (!existingRoom) return;
+
+    try {
+      setLoading(true);
+      setError('');
+
+      const response = await fetch('/api/rooms/leave', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomId: existingRoom.room_id }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to leave room');
+      }
+
+      // Clear existing room and proceed to create new one
+      setExistingRoom(null);
+    } catch (err) {
+      console.error('Leave room error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to leave room');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const rejoinExistingRoom = () => {
+    if (!existingRoom) return;
+    
+    if (existingRoom.status === 'waiting') {
+      router.push(`/room/${existingRoom.room_id}`);
+    } else {
+      router.push(`/game/${existingRoom.room_id}`);
+    }
+  };
+
   // Only create room once after checking for existing rooms
   useEffect(() => {
-    if (!checkingExisting && !hasCreated && !session) {
+    if (!checkingExisting && !hasCreated && !session && !existingRoom) {
       createRoom();
     }
-  }, [createRoom, hasCreated, session, checkingExisting]);
+  }, [createRoom, hasCreated, session, checkingExisting, existingRoom]);
 
-  if (checkingExisting || !session) {
+  if (checkingExisting) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center p-4">
         <div className="bg-white rounded-xl shadow-2xl p-8 max-w-md w-full text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4" />
-          <p className="text-gray-700">
-            {checkingExisting ? 'Checking for existing rooms...' : 'Creating room...'}
-          </p>
+          <p className="text-gray-700">Checking for existing rooms...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show existing room options
+  if (existingRoom) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl shadow-2xl p-8 max-w-lg w-full">
+          <div className="text-center mb-6">
+            <div className="text-6xl mb-4">⚠️</div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              You Already Have an Active Room
+            </h1>
+            <p className="text-gray-600">
+              You need to leave your current room before creating a new one
+            </p>
+          </div>
+
+          {/* Existing Room Info */}
+          <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-6 mb-6">
+            <div className="text-center">
+              <p className="text-sm text-blue-600 mb-1">Room Code</p>
+              <p className="text-4xl font-bold text-blue-900 mb-3 font-mono tracking-widest">
+                {existingRoom.room_code}
+              </p>
+              <p className="text-sm text-blue-700">
+                Status: {existingRoom.status === 'waiting' ? '⏳ Waiting for players' : '🎮 Game in progress'}
+              </p>
+            </div>
+          </div>
+
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-100 border-2 border-red-300 rounded-lg p-4 mb-6">
+              <div className="text-red-800 text-sm">{error}</div>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="space-y-3">
+            <button
+              onClick={rejoinExistingRoom}
+              className="w-full bg-blue-600 text-white py-4 rounded-lg font-bold text-lg hover:bg-blue-700 transition-colors"
+            >
+              🎮 Rejoin Existing Room
+            </button>
+
+            <button
+              onClick={leaveExistingRoom}
+              disabled={loading}
+              className="w-full bg-red-600 text-white py-4 rounded-lg font-bold text-lg hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+            >
+              {loading ? 'Leaving...' : '🚪 Leave Room & Create New'}
+            </button>
+
+            <button
+              onClick={() => router.push('/')}
+              className="w-full bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+            >
+              ← Back to Home
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl shadow-2xl p-8 max-w-md w-full text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4" />
+          <p className="text-gray-700">Creating room...</p>
         </div>
       </div>
     );
