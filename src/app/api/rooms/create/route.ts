@@ -21,7 +21,7 @@ export async function POST() {
       );
     }
 
-    // Check if user already has an active room as host
+    // Check if user already has an active room as host AND is still in that room
     const { data: existingRoom } = await supabase
       .from('rooms')
       .select('*')
@@ -31,7 +31,7 @@ export async function POST() {
       .single();
 
     if (existingRoom) {
-      // Return existing room instead of creating new one
+      // Check if user is still a player in this room (they might have left)
       const { data: player } = await supabase
         .from('room_players')
         .select('*')
@@ -39,10 +39,14 @@ export async function POST() {
         .eq('user_id', user.id)
         .single();
 
-      return NextResponse.json({
-        success: true,
-        data: { session: existingRoom, player },
-      });
+      // Only return existing room if user is still in it
+      if (player) {
+        return NextResponse.json({
+          success: true,
+          data: { session: existingRoom, player },
+        });
+      }
+      // If not in room anymore, fall through to create new room
     }
 
     // Create game session
