@@ -46,10 +46,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-        // Submit answer
+    // Submit answer
     const { attempt, pointsEarned } = await submitAnswer(sessionQuestionId, playerId, answer, timeTaken);
 
-    // Update room_question tracking (increment players_answered)
+    // Get room_question info
     const { data: roomQuestion } = await supabase
       .from('room_questions')
       .select('*, question(*)')
@@ -60,19 +60,29 @@ export async function POST(request: NextRequest) {
       throw new Error('Room question not found');
     }
 
-    const currentAnswered = roomQuestion.players_answered || 0;
     const totalPlayers = roomQuestion.total_players || 0;
-    const newAnsweredCount = currentAnswered + 1;
+
+    // Use atomic increment function to prevent race conditions
+    const { data: newCount, error: rpcError } = await supabase
+      .rpc('increment_players_answered', {
+        question_id: sessionQuestionId
+      });
+
+    if (rpcError) {
+      console.error('RPC error:', rpcError);
+      throw new Error('Failed to update answer count');
+    }
+
+    const newAnsweredCount = newCount || 1;
     const allAnswered = newAnsweredCount >= totalPlayers;
 
-    // Update the room_question
-    await supabase
-      .from('room_questions')
-      .update({
-        players_answered: newAnsweredCount,
-        all_answered: allAnswered,
-      })
-      .eq('room_question_id', sessionQuestionId);
+    // Update all_answered flag if all players have answered
+    if (allAnswered) {
+      await supabase
+        .from('room_questions')
+        .update({ all_answered: true })
+        .eq('room_question_id', sessionQuestionId);
+    }
 
     // If all players answered, automatically advance the turn
     if (allAnswered) {
