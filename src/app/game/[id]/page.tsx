@@ -43,6 +43,7 @@ export default function GamePage() {
   // Track previous turn/player to detect changes
   const prevTurnRef = useRef<number | null>(null);
   const prevPlayerIndexRef = useRef<number | null>(null);
+  const lastQuestionIdRef = useRef<string | null>(null);
 
   const { session, players } = useGameRealtime(sessionId);
   const { currentQuestion: realtimeQuestion } = useQuizRealtime(sessionId);
@@ -96,9 +97,11 @@ export default function GamePage() {
         
         console.log('Flattened question:', flattenedQuestion);
         setCurrentQuestion(flattenedQuestion as CurrentQuestion);
+        lastQuestionIdRef.current = roomQuestion.room_question_id; // Track question ID
       } else {
         // Already flat structure
         setCurrentQuestion(roomQuestion as CurrentQuestion);
+        lastQuestionIdRef.current = roomQuestion.room_question_id; // Track question ID
       }
       
       setShowResults(false);
@@ -116,14 +119,6 @@ export default function GamePage() {
     const currentPlayerIndex = session.current_player_index;
     
     console.log('🔄 Session updated - Current turn:', currentTurn, 'Player index:', currentPlayerIndex);
-    console.log('📊 Current state:', { 
-      hasQuestion: !!currentQuestion, 
-      showResults, 
-      hasAnswered, 
-      waitingForOthers,
-      prevTurn: prevTurnRef.current,
-      prevPlayerIndex: prevPlayerIndexRef.current
-    });
     
     // Check if turn or player actually changed
     const turnChanged = prevTurnRef.current !== null && prevTurnRef.current !== currentTurn;
@@ -131,18 +126,20 @@ export default function GamePage() {
     
     if (turnChanged || playerChanged) {
       console.log('✅ Turn/Player changed! Clearing question state...');
+      // Clear everything - fresh start for the new turn
       setCurrentQuestion(null);
       setShowResults(false);
       setLastResult(null);
       setHasAnswered(false);
       setWaitingForOthers(false);
       setDiceValue(null);
+      lastQuestionIdRef.current = null;
     }
     
     // Update refs
     prevTurnRef.current = currentTurn ?? null;
     prevPlayerIndexRef.current = currentPlayerIndex ?? null;
-  }, [session?.current_turn, session?.current_player_index, session]);
+  }, [session?.current_turn, session?.current_player_index]);
 
   const isMyTurn = () => {
     if (!session || !currentPlayer || !players.length) return false;
