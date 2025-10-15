@@ -257,6 +257,34 @@ export default function GamePage() {
     }
   };
 
+  const leaveRoom = async () => {
+    if (!session || !confirm('Are you sure you want to leave the game? You cannot rejoin after leaving.')) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const response = await fetch('/api/rooms/leave', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomId: session.room_id }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to leave room');
+      }
+
+      // Redirect to home after leaving
+      router.push('/');
+    } catch (err) {
+      console.error('Leave room error:', err);
+      alert(err instanceof Error ? err.message : 'Failed to leave room');
+      setLoading(false);
+    }
+  };
+
   if (!session || !currentPlayer) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center">
@@ -387,10 +415,11 @@ export default function GamePage() {
             
             {session.status === 'in_progress' && (
               <button
-                onClick={() => router.push('/')}
-                className="w-full bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 transition-colors"
+                onClick={leaveRoom}
+                disabled={loading}
+                className="w-full bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
               >
-                Leave Game
+                {loading ? 'Leaving...' : 'Leave Game'}
               </button>
             )}
           </div>
