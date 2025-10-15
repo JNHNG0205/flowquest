@@ -110,7 +110,7 @@ export default function GamePage() {
     }
   }, [realtimeQuestion]);
 
-  // Reset UI when turn changes - Handle results phase and reset to dice phase
+  // Reset UI when turn changes - Phase 1: Dice Phase
   useEffect(() => {
     if (!session) return;
     
@@ -122,41 +122,41 @@ export default function GamePage() {
     const playerChanged = prevPlayerIndexRef.current !== null && prevPlayerIndexRef.current !== currentPlayerIndex;
     
     if (turnChanged || playerChanged) {
-      // If we're in answering phase and have a result, show results first
-      if (gamePhase === 'answering' && hasAnswered && myResult) {
-        setGamePhase('results');
-        
-        // After 2 seconds, reset to dice phase for new turn
-        setTimeout(() => {
-          setGamePhase('dice');
-          setCurrentQuestion(null);
-          setHasAnswered(false);
-          setMyResult(null);
-          setDiceValue(null);
-          lastQuestionIdRef.current = null;
-          
-          // Force React to re-render by updating render key
-          setRenderKey(prev => prev + 1);
-        }, 2000);
-      } else {
-        // Direct reset to dice phase for new turn
-        setGamePhase('dice');
-        setCurrentQuestion(null);
-        setHasAnswered(false);
-        setMyResult(null);
-        setDiceValue(null);
-        lastQuestionIdRef.current = null;
-        
-        // Force React to re-render by updating render key
-        setRenderKey(prev => prev + 1);
-      }
+      // Reset to dice phase for new turn
+      setGamePhase('dice');
+      setCurrentQuestion(null);
+      setHasAnswered(false);
+      setMyResult(null);
+      setDiceValue(null);
+      lastQuestionIdRef.current = null;
+      
+      // Force React to re-render by updating render key
+      setRenderKey(prev => prev + 1);
     }
     
     // Update refs
     prevTurnRef.current = currentTurn ?? null;
     prevPlayerIndexRef.current = currentPlayerIndex ?? null;
-  }, [session?.current_turn, session?.current_player_index, gamePhase, hasAnswered, myResult]);
+  }, [session?.current_turn, session?.current_player_index]);
 
+  // Show results phase when all players have answered
+  useEffect(() => {
+    if (gamePhase === 'answering' && hasAnswered && myResult) {
+      // Show results after a delay (simulating waiting for all players)
+      const resultsTimeout = setTimeout(() => {
+        setGamePhase('results');
+        
+        // After 2 seconds, advance to next turn
+        const nextTurnTimeout = setTimeout(() => {
+          setGamePhase('dice');
+        }, 2000);
+        
+        return () => clearTimeout(nextTurnTimeout);
+      }, 3000); // Wait 3 seconds for all players to answer
+      
+      return () => clearTimeout(resultsTimeout);
+    }
+  }, [gamePhase, hasAnswered, myResult]);
 
   const isMyTurn = () => {
     if (!session || !currentPlayer || !players.length) return false;
