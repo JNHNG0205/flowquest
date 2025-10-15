@@ -25,10 +25,12 @@ export default function GamePage() {
   const [currentPlayer, setCurrentPlayer] = useState<SessionPlayer | null>(null);
   const [showScanner, setShowScanner] = useState(false);
   const [diceValue, setDiceValue] = useState<number | null>(null);
+  // Game flow states
+  const [gamePhase, setGamePhase] = useState<'dice' | 'question' | 'answering' | 'results' | 'waiting'>('dice');
   const [currentQuestion, setCurrentQuestion] = useState<CurrentQuestion | null>(null);
-  const [showResults, setShowResults] = useState(false);
-  const [showQuizResult, setShowQuizResult] = useState(false);
-  const [lastResult, setLastResult] = useState<{ 
+  const [loading, setLoading] = useState(false);
+  const [hasAnswered, setHasAnswered] = useState(false);
+  const [myResult, setMyResult] = useState<{ 
     correct?: boolean;
     is_correct?: boolean; 
     pointsEarned?: number;
@@ -37,16 +39,12 @@ export default function GamePage() {
     correct_answer?: string;
     explanation?: string;
   } | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [hasAnswered, setHasAnswered] = useState(false);
-  const [waitingForOthers, setWaitingForOthers] = useState(false);
   const [renderKey, setRenderKey] = useState(0); // Force re-render key
   
   // Track previous turn/player to detect changes
   const prevTurnRef = useRef<number | null>(null);
   const prevPlayerIndexRef = useRef<number | null>(null);
   const lastQuestionIdRef = useRef<string | null>(null);
-  const quizResultTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const { session, players } = useGameRealtime(sessionId);
   const { currentQuestion: realtimeQuestion } = useQuizRealtime(sessionId);
@@ -69,10 +67,9 @@ export default function GamePage() {
     }
   }, [currentUser, players]);
 
-  // Update question from realtime
+  // Update question from realtime - Phase 2: Question Phase
   useEffect(() => {
     if (realtimeQuestion) {
-      
       const roomQuestion = realtimeQuestion as any;
       
       // Check if this is a nested structure (from realtime) or flat (from API)
@@ -98,57 +95,43 @@ export default function GamePage() {
         };
         
         setCurrentQuestion(flattenedQuestion as CurrentQuestion);
-        lastQuestionIdRef.current = roomQuestion.room_question_id; // Track question ID
+        lastQuestionIdRef.current = roomQuestion.room_question_id;
       } else {
         // Already flat structure
         setCurrentQuestion(roomQuestion as CurrentQuestion);
-        lastQuestionIdRef.current = roomQuestion.room_question_id; // Track question ID
+        lastQuestionIdRef.current = roomQuestion.room_question_id;
       }
       
-      // IMPORTANT: Clear results when new question arrives
-      setShowResults(false);
-      setShowQuizResult(false);
+      // Transition to question phase - show question to ALL players
+      setGamePhase('question');
       setDiceValue(null);
-      setHasAnswered(false); // Reset for new question
-      setWaitingForOthers(false);
-      setLastResult(null); // Clear previous results
+      setHasAnswered(false);
+      setMyResult(null);
     }
-  }, [realtimeQuestion, session?.current_turn, session?.current_player_index]);
+  }, [realtimeQuestion]);
 
-  // Reset UI when turn changes (all players have answered and turn advanced)
+  // Reset UI when turn changes - Phase 1: Dice Phase
   useEffect(() => {
     if (!session) return;
     
     const currentTurn = session.current_turn;
     const currentPlayerIndex = session.current_player_index;
     
-    
     // Check if turn or player actually changed
     const turnChanged = prevTurnRef.current !== null && prevTurnRef.current !== currentTurn;
     const playerChanged = prevPlayerIndexRef.current !== null && prevPlayerIndexRef.current !== currentPlayerIndex;
     
-    
     if (turnChanged || playerChanged) {
-      
-      // Clear any pending quiz result timeout
-      if (quizResultTimeoutRef.current) {
-        clearTimeout(quizResultTimeoutRef.current);
-        quizResultTimeoutRef.current = null;
-      }
-      
-      // Clear everything - fresh start for the new turn
+      // Reset to dice phase for new turn
+      setGamePhase('dice');
       setCurrentQuestion(null);
-      setShowResults(false);
-      setShowQuizResult(false);
-      setLastResult(null);
       setHasAnswered(false);
-      setWaitingForOthers(false);
+      setMyResult(null);
       setDiceValue(null);
       lastQuestionIdRef.current = null;
       
       // Force React to re-render by updating render key
       setRenderKey(prev => prev + 1);
-      
     }
     
     // Update refs
@@ -156,34 +139,24 @@ export default function GamePage() {
     prevPlayerIndexRef.current = currentPlayerIndex ?? null;
   }, [session?.current_turn, session?.current_player_index]);
 
-  // Additional effect to clear quiz result when it's a new player's turn
+  // Show results phase when all players have answered
   useEffect(() => {
-    if (!session || !currentPlayer) return;
-    
-    const isMyTurnNow = isMyTurn();
-    
-    // If it's my turn now and I have a quiz result showing, clear it
-    if (isMyTurnNow && showQuizResult) {
-      // Clear any pending timeout
-      if (quizResultTimeoutRef.current) {
-        clearTimeout(quizResultTimeoutRef.current);
-        quizResultTimeoutRef.current = null;
-      }
+    if (gamePhase === 'answering' && hasAnswered && myResult) {
+      // Show results after a delay (simulating waiting for all players)
+      const resultsTimeout = setTimeout(() => {
+        setGamePhase('results');
+        
+        // After 2 seconds, advance to next turn
+        const nextTurnTimeout = setTimeout(() => {
+          setGamePhase('dice');
+        }, 2000);
+        
+        return () => clearTimeout(nextTurnTimeout);
+      }, 3000); // Wait 3 seconds for all players to answer
       
-      setShowQuizResult(false);
-      setShowResults(false);
-      setLastResult(null);
+      return () => clearTimeout(resultsTimeout);
     }
-  }, [session?.current_player_index, currentPlayer, showQuizResult]);
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (quizResultTimeoutRef.current) {
-        clearTimeout(quizResultTimeoutRef.current);
-      }
-    };
-  }, []);
+  }, [gamePhase, hasAnswered, myResult]);
 
   const isMyTurn = () => {
     if (!session || !currentPlayer || !players.length) return false;
@@ -299,26 +272,13 @@ export default function GamePage() {
         throw new Error(result.error || 'Failed to submit answer');
       }
 
-      setLastResult(result.data);
-      setShowQuizResult(true);
+      // Store my result and transition to answering phase (waiting for others)
+      setMyResult(result.data);
       setHasAnswered(true);
+      setGamePhase('answering');
 
-      // Show quiz result for 2 seconds, then transition to waiting screen
-      quizResultTimeoutRef.current = setTimeout(() => {
-        setShowQuizResult(false);
-        
-        // Always show results after quiz result, but only show waiting if not all answered
-        setShowResults(true);
-        if (!result.data.all_answered) {
-          setWaitingForOthers(true);
-        } else {
-          setWaitingForOthers(false);
-        }
-        quizResultTimeoutRef.current = null;
-      }, 2000);
-
-      // Turn will advance automatically when all players answer (handled by API)
-      // No need to call advanceTurn manually
+      // The API will automatically advance the turn when all players answer
+      // The results phase will be triggered by the turn change
     } catch (error) {
       console.error('Submit answer error:', error);
       alert('Failed to submit answer');
@@ -340,8 +300,8 @@ export default function GamePage() {
       }
 
       setCurrentQuestion(null);
-      setShowResults(false);
-      setLastResult(null);
+      setGamePhase('dice');
+      setMyResult(null);
     } catch (error) {
       console.error('Advance turn error:', error);
     }
@@ -402,83 +362,18 @@ export default function GamePage() {
             {process.env.NODE_ENV === 'development' && (
               <div className="bg-gray-800 text-white p-4 rounded text-xs space-y-1">
                 <div className="font-bold text-green-400">Render Key: {renderKey}</div>
+                <div>Game Phase: {gamePhase}</div>
                 <div>Has Question: {currentQuestion ? 'Yes' : 'No'}</div>
-                <div>Show Results: {showResults ? 'Yes' : 'No'}</div>
-                <div>Show Quiz Result: {showQuizResult ? 'Yes' : 'No'}</div>
                 <div>Has Answered: {hasAnswered ? 'Yes' : 'No'}</div>
-                <div>Waiting: {waitingForOthers ? 'Yes' : 'No'}</div>
                 <div>Is My Turn: {isMyTurn() ? 'Yes' : 'No'}</div>
-                <div>Last Result: {lastResult ? 'Yes' : 'No'}</div>
-                <div className="pt-2 border-t border-gray-600 mt-2">
-                  <div>Condition 1 (Question): {currentQuestion && !hasAnswered ? '✅ YES' : '❌ NO'}</div>
-                  <div>Condition 1.5 (Quiz Result): {showQuizResult && lastResult ? '✅ YES' : '❌ NO'}</div>
-                  <div>Condition 2 (Waiting): {hasAnswered && waitingForOthers && !currentQuestion && !showQuizResult ? '✅ YES' : '❌ NO'}</div>
-                  <div>Condition 3 (Dice): {!currentQuestion && !hasAnswered && !waitingForOthers && !showQuizResult && isMyTurn() ? '✅ YES' : '❌ NO'}</div>
-                  <div>Condition 4 (Wait Turn): {!currentQuestion && !hasAnswered && !waitingForOthers && !showQuizResult && !isMyTurn() ? '✅ YES' : '❌ NO'}</div>
-                </div>
+                <div>My Result: {myResult ? 'Yes' : 'No'}</div>
+                <div>Current Turn: {session?.current_turn}</div>
+                <div>Current Player Index: {session?.current_player_index}</div>
               </div>
             )}
 
-            {/* Priority 1: Show question if available and player hasn't answered */}
-            {currentQuestion && !hasAnswered && !showQuizResult && (
-              <div className="flex justify-center">
-                <QuizQuestion
-                  question={currentQuestion}
-                  timeLimit={currentQuestion.time_limit}
-                  onSubmit={handleSubmitAnswer}
-                  disabled={false} // All players can answer
-                />
-              </div>
-            )}
-
-            {/* Priority 1.5: Show quiz result for 2 seconds after answering */}
-            {showQuizResult && lastResult && (
-              <div className="bg-white rounded-lg shadow-lg p-8 max-w-2xl mx-auto">
-                <div className="text-center">
-                  <div className={`text-6xl mb-4 ${lastResult.is_correct || lastResult.correct ? 'text-green-500' : 'text-red-500'}`}>
-                    {lastResult.is_correct || lastResult.correct ? '✅' : '❌'}
-                  </div>
-                  <h2 className={`text-2xl font-bold mb-2 ${lastResult.is_correct || lastResult.correct ? 'text-green-900' : 'text-red-900'}`}>
-                    {lastResult.is_correct || lastResult.correct ? 'Correct!' : 'Incorrect'}
-                  </h2>
-                  <p className="text-gray-700 mb-4">
-                    {lastResult.is_correct || lastResult.correct 
-                      ? `You earned ${lastResult.points_earned || lastResult.pointsEarned || 0} points!`
-                      : `The correct answer was: ${lastResult.correct_answer || lastResult.correctAnswer}`
-                    }
-                  </p>
-                  <div className="animate-pulse text-sm text-gray-500">
-                    Showing result for 2 seconds...
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Priority 2: Show waiting screen if answered but waiting for others */}
-            {hasAnswered && waitingForOthers && !currentQuestion && !showQuizResult && (
-              <div className="bg-blue-50 rounded-lg shadow-lg p-8 max-w-2xl mx-auto">
-                <div className="text-center">
-                  <div className="text-6xl mb-4 animate-pulse">⏳</div>
-                  <h2 className="text-2xl font-bold text-blue-900 mb-2">
-                    Waiting for other players...
-                  </h2>
-                  <p className="text-blue-700">
-                    You submitted your answer! Waiting for everyone else to finish.
-                  </p>
-                  {lastResult && (
-                    <div className="mt-4 p-4 bg-white rounded-lg">
-                      <p className="text-sm text-gray-600">Your score:</p>
-                      <p className="text-2xl font-bold text-blue-900">
-                        +{lastResult.points_earned || lastResult.pointsEarned || 0} points
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Priority 3: Show dice roller if it's player's turn and no question */}
-            {!currentQuestion && !hasAnswered && !waitingForOthers && !showQuizResult && isMyTurn() && (
+            {/* Phase 1: Dice Roll Phase */}
+            {gamePhase === 'dice' && isMyTurn() && (
               <div className="bg-white rounded-lg shadow-lg p-8 flex flex-col items-center">
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">
                   Your Turn - Roll the Dice!
@@ -495,14 +390,72 @@ export default function GamePage() {
               </div>
             )}
 
-            {/* Priority 4: Show waiting screen if not player's turn */}
-            {!currentQuestion && !hasAnswered && !waitingForOthers && !showQuizResult && !isMyTurn() && (
+            {/* Phase 1: Waiting for current player to roll dice */}
+            {gamePhase === 'dice' && !isMyTurn() && (
               <div className="bg-white rounded-lg shadow-lg p-8 text-center">
                 <div className="animate-pulse text-4xl mb-4">⏳</div>
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">
                   Waiting for Player {((session.current_player_index || 0) + 1)}&apos;s turn
                 </h2>
                 <p className="text-gray-600">It&apos;s their turn to roll the dice</p>
+              </div>
+            )}
+
+            {/* Phase 2: Question Phase - Show question to ALL players */}
+            {gamePhase === 'question' && currentQuestion && !hasAnswered && (
+              <div className="flex justify-center">
+                <QuizQuestion
+                  question={currentQuestion}
+                  timeLimit={currentQuestion.time_limit}
+                  onSubmit={handleSubmitAnswer}
+                  disabled={false} // All players can answer
+                />
+              </div>
+            )}
+
+            {/* Phase 3: Answering Phase - Waiting for other players to finish */}
+            {gamePhase === 'answering' && hasAnswered && (
+              <div className="bg-blue-50 rounded-lg shadow-lg p-8 max-w-2xl mx-auto">
+                <div className="text-center">
+                  <div className="text-6xl mb-4 animate-pulse">⏳</div>
+                  <h2 className="text-2xl font-bold text-blue-900 mb-2">
+                    Waiting for other players...
+                  </h2>
+                  <p className="text-blue-700">
+                    You submitted your answer! Waiting for everyone else to finish.
+                  </p>
+                  {myResult && (
+                    <div className="mt-4 p-4 bg-white rounded-lg">
+                      <p className="text-sm text-gray-600">Your score:</p>
+                      <p className="text-2xl font-bold text-blue-900">
+                        +{myResult.points_earned || myResult.pointsEarned || 0} points
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Phase 4: Results Phase - Show results to ALL players for 2 seconds */}
+            {gamePhase === 'results' && myResult && (
+              <div className="bg-white rounded-lg shadow-lg p-8 max-w-2xl mx-auto">
+                <div className="text-center">
+                  <div className={`text-6xl mb-4 ${myResult.is_correct || myResult.correct ? 'text-green-500' : 'text-red-500'}`}>
+                    {myResult.is_correct || myResult.correct ? '✅' : '❌'}
+                  </div>
+                  <h2 className={`text-2xl font-bold mb-2 ${myResult.is_correct || myResult.correct ? 'text-green-900' : 'text-red-900'}`}>
+                    {myResult.is_correct || myResult.correct ? 'Correct!' : 'Incorrect'}
+                  </h2>
+                  <p className="text-gray-700 mb-4">
+                    {myResult.is_correct || myResult.correct 
+                      ? `You earned ${myResult.points_earned || myResult.pointsEarned || 0} points!`
+                      : `The correct answer was: ${myResult.correct_answer || myResult.correctAnswer}`
+                    }
+                  </p>
+                  <div className="animate-pulse text-sm text-gray-500">
+                    Showing results for 2 seconds...
+                  </div>
+                </div>
               </div>
             )}
           </div>
