@@ -27,6 +27,7 @@ export default function GamePage() {
   const [diceValue, setDiceValue] = useState<number | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState<CurrentQuestion | null>(null);
   const [showResults, setShowResults] = useState(false);
+  const [showQuizResult, setShowQuizResult] = useState(false);
   const [lastResult, setLastResult] = useState<{ 
     correct?: boolean;
     is_correct?: boolean; 
@@ -104,6 +105,7 @@ export default function GamePage() {
       
       // IMPORTANT: Clear results when new question arrives
       setShowResults(false);
+      setShowQuizResult(false);
       setDiceValue(null);
       setHasAnswered(false); // Reset for new question
       setWaitingForOthers(false);
@@ -129,6 +131,7 @@ export default function GamePage() {
       // Clear everything - fresh start for the new turn
       setCurrentQuestion(null);
       setShowResults(false);
+      setShowQuizResult(false);
       setLastResult(null);
       setHasAnswered(false);
       setWaitingForOthers(false);
@@ -260,13 +263,19 @@ export default function GamePage() {
       }
 
       setLastResult(result.data);
-      setShowResults(true);
+      setShowQuizResult(true);
       setHasAnswered(true);
 
-      // Check if waiting for other players
-      if (!result.data.all_answered) {
-        setWaitingForOthers(true);
-      }
+      // Show quiz result for 2 seconds, then transition to waiting screen
+      setTimeout(() => {
+        setShowQuizResult(false);
+        setShowResults(true);
+        
+        // Check if waiting for other players
+        if (!result.data.all_answered) {
+          setWaitingForOthers(true);
+        }
+      }, 2000);
 
       // Turn will advance automatically when all players answer (handled by API)
       // No need to call advanceTurn manually
@@ -355,15 +364,17 @@ export default function GamePage() {
                 <div className="font-bold text-green-400">Render Key: {renderKey}</div>
                 <div>Has Question: {currentQuestion ? 'Yes' : 'No'}</div>
                 <div>Show Results: {showResults ? 'Yes' : 'No'}</div>
+                <div>Show Quiz Result: {showQuizResult ? 'Yes' : 'No'}</div>
                 <div>Has Answered: {hasAnswered ? 'Yes' : 'No'}</div>
                 <div>Waiting: {waitingForOthers ? 'Yes' : 'No'}</div>
                 <div>Is My Turn: {isMyTurn() ? 'Yes' : 'No'}</div>
                 <div>Last Result: {lastResult ? 'Yes' : 'No'}</div>
                 <div className="pt-2 border-t border-gray-600 mt-2">
                   <div>Condition 1 (Question): {currentQuestion && !hasAnswered ? '✅ YES' : '❌ NO'}</div>
-                  <div>Condition 2 (Waiting): {hasAnswered && waitingForOthers && !currentQuestion ? '✅ YES' : '❌ NO'}</div>
-                  <div>Condition 3 (Dice): {!currentQuestion && !hasAnswered && !waitingForOthers && isMyTurn() ? '✅ YES' : '❌ NO'}</div>
-                  <div>Condition 4 (Wait Turn): {!currentQuestion && !hasAnswered && !waitingForOthers && !isMyTurn() ? '✅ YES' : '❌ NO'}</div>
+                  <div>Condition 1.5 (Quiz Result): {showQuizResult && lastResult ? '✅ YES' : '❌ NO'}</div>
+                  <div>Condition 2 (Waiting): {hasAnswered && waitingForOthers && !currentQuestion && !showQuizResult ? '✅ YES' : '❌ NO'}</div>
+                  <div>Condition 3 (Dice): {!currentQuestion && !hasAnswered && !waitingForOthers && !showQuizResult && isMyTurn() ? '✅ YES' : '❌ NO'}</div>
+                  <div>Condition 4 (Wait Turn): {!currentQuestion && !hasAnswered && !waitingForOthers && !showQuizResult && !isMyTurn() ? '✅ YES' : '❌ NO'}</div>
                 </div>
               </div>
             )}
@@ -380,8 +391,31 @@ export default function GamePage() {
               </div>
             )}
 
+            {/* Priority 1.5: Show quiz result for 2 seconds after answering */}
+            {showQuizResult && lastResult && (
+              <div className="bg-white rounded-lg shadow-lg p-8 max-w-2xl mx-auto">
+                <div className="text-center">
+                  <div className={`text-6xl mb-4 ${lastResult.is_correct || lastResult.correct ? 'text-green-500' : 'text-red-500'}`}>
+                    {lastResult.is_correct || lastResult.correct ? '✅' : '❌'}
+                  </div>
+                  <h2 className={`text-2xl font-bold mb-2 ${lastResult.is_correct || lastResult.correct ? 'text-green-900' : 'text-red-900'}`}>
+                    {lastResult.is_correct || lastResult.correct ? 'Correct!' : 'Incorrect'}
+                  </h2>
+                  <p className="text-gray-700 mb-4">
+                    {lastResult.is_correct || lastResult.correct 
+                      ? `You earned ${lastResult.points_earned || lastResult.pointsEarned || 0} points!`
+                      : `The correct answer was: ${lastResult.correct_answer || lastResult.correctAnswer}`
+                    }
+                  </p>
+                  <div className="animate-pulse text-sm text-gray-500">
+                    Showing result for 2 seconds...
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Priority 2: Show waiting screen if answered but waiting for others */}
-            {hasAnswered && waitingForOthers && !currentQuestion && (
+            {hasAnswered && waitingForOthers && !currentQuestion && !showQuizResult && (
               <div className="bg-blue-50 rounded-lg shadow-lg p-8 max-w-2xl mx-auto">
                 <div className="text-center">
                   <div className="text-6xl mb-4 animate-pulse">⏳</div>
@@ -404,7 +438,7 @@ export default function GamePage() {
             )}
 
             {/* Priority 3: Show dice roller if it's player's turn and no question */}
-            {!currentQuestion && !hasAnswered && !waitingForOthers && isMyTurn() && (
+            {!currentQuestion && !hasAnswered && !waitingForOthers && !showQuizResult && isMyTurn() && (
               <div className="bg-white rounded-lg shadow-lg p-8 flex flex-col items-center">
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">
                   Your Turn - Roll the Dice!
@@ -422,7 +456,7 @@ export default function GamePage() {
             )}
 
             {/* Priority 4: Show waiting screen if not player's turn */}
-            {!currentQuestion && !hasAnswered && !waitingForOthers && !isMyTurn() && (
+            {!currentQuestion && !hasAnswered && !waitingForOthers && !showQuizResult && !isMyTurn() && (
               <div className="bg-white rounded-lg shadow-lg p-8 text-center">
                 <div className="animate-pulse text-4xl mb-4">⏳</div>
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">
