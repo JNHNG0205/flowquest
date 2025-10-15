@@ -68,7 +68,8 @@ export default function GamePage() {
   // Update question from realtime
   useEffect(() => {
     if (realtimeQuestion) {
-      console.log('Received realtime question:', realtimeQuestion);
+      console.log('📩 Received realtime question:', realtimeQuestion);
+      console.log('📩 Current session state:', { turn: session?.current_turn, playerIndex: session?.current_player_index });
       
       const roomQuestion = realtimeQuestion as any;
       
@@ -96,20 +97,25 @@ export default function GamePage() {
         };
         
         console.log('Flattened question:', flattenedQuestion);
+        console.log('🎯 SETTING NEW QUESTION - clearing results and answer states');
         setCurrentQuestion(flattenedQuestion as CurrentQuestion);
         lastQuestionIdRef.current = roomQuestion.room_question_id; // Track question ID
       } else {
         // Already flat structure
+        console.log('🎯 SETTING NEW QUESTION - clearing results and answer states');
         setCurrentQuestion(roomQuestion as CurrentQuestion);
         lastQuestionIdRef.current = roomQuestion.room_question_id; // Track question ID
       }
       
+      // IMPORTANT: Clear results when new question arrives
+      console.log('🧹 Clearing results/answers for NEW question');
       setShowResults(false);
       setDiceValue(null);
       setHasAnswered(false); // Reset for new question
       setWaitingForOthers(false);
+      setLastResult(null); // Clear previous results
     }
-  }, [realtimeQuestion]);
+  }, [realtimeQuestion, session?.current_turn, session?.current_player_index]);
 
   // Reset UI when turn changes (all players have answered and turn advanced)
   useEffect(() => {
@@ -135,14 +141,23 @@ export default function GamePage() {
     
     if (turnChanged || playerChanged) {
       console.log('✅ Turn/Player changed! Clearing question state...');
-      // Clear everything - fresh start for the new turn
-      setCurrentQuestion(null);
-      setShowResults(false);
-      setLastResult(null);
-      setHasAnswered(false);
-      setWaitingForOthers(false);
-      setDiceValue(null);
-      lastQuestionIdRef.current = null;
+      
+      // Clear everything immediately - use setTimeout to ensure it runs after any other state updates
+      setTimeout(() => {
+        console.log('🧹 FORCE CLEARING ALL STATE NOW');
+        setCurrentQuestion(null);
+        setShowResults(false);
+        setLastResult(null);
+        setHasAnswered(false);
+        setWaitingForOthers(false);
+        setDiceValue(null);
+        lastQuestionIdRef.current = null;
+        
+        // Log state after clear
+        setTimeout(() => {
+          console.log('🔍 State after clear - showResults should be false');
+        }, 100);
+      }, 0);
     }
     
     // Update refs
@@ -340,7 +355,7 @@ export default function GamePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 p-4" key={`turn-${session.current_turn}-player-${session.current_player_index}`}>
       <div className="max-w-6xl mx-auto py-8">
         {/* Header */}
         <div className="text-center mb-8">
