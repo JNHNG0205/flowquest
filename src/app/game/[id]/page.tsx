@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import { useGameRealtime, useQuizRealtime } from '@/hooks/useGameRealtime';
@@ -39,6 +39,10 @@ export default function GamePage() {
   const [loading, setLoading] = useState(false);
   const [hasAnswered, setHasAnswered] = useState(false);
   const [waitingForOthers, setWaitingForOthers] = useState(false);
+  
+  // Track previous turn/player to detect changes
+  const prevTurnRef = useRef<number | null>(null);
+  const prevPlayerIndexRef = useRef<number | null>(null);
 
   const { session, players } = useGameRealtime(sessionId);
   const { currentQuestion: realtimeQuestion } = useQuizRealtime(sessionId);
@@ -108,12 +112,17 @@ export default function GamePage() {
   useEffect(() => {
     if (!session) return;
     
-    console.log('🔄 Session updated - Current turn:', session.current_turn, 'Player index:', session.current_player_index);
+    const currentTurn = session.current_turn;
+    const currentPlayerIndex = session.current_player_index;
     
-    // When turn changes, clear everything so next player can roll dice
-    // This happens after all players answered the question
-    if (waitingForOthers) {
-      console.log('✅ Turn advanced! Clearing question state...');
+    console.log('🔄 Session updated - Current turn:', currentTurn, 'Player index:', currentPlayerIndex);
+    
+    // Check if turn or player actually changed
+    const turnChanged = prevTurnRef.current !== null && prevTurnRef.current !== currentTurn;
+    const playerChanged = prevPlayerIndexRef.current !== null && prevPlayerIndexRef.current !== currentPlayerIndex;
+    
+    if (turnChanged || playerChanged) {
+      console.log('✅ Turn/Player changed! Clearing question state...');
       setCurrentQuestion(null);
       setShowResults(false);
       setLastResult(null);
@@ -121,7 +130,11 @@ export default function GamePage() {
       setWaitingForOthers(false);
       setDiceValue(null);
     }
-  }, [session?.current_turn, session?.current_player_index]);
+    
+    // Update refs
+    prevTurnRef.current = currentTurn ?? null;
+    prevPlayerIndexRef.current = currentPlayerIndex ?? null;
+  }, [session?.current_turn, session?.current_player_index, session]);
 
   const isMyTurn = () => {
     if (!session || !currentPlayer || !players.length) return false;
