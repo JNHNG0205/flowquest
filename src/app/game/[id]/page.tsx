@@ -116,6 +116,14 @@ export default function GamePage() {
     const currentPlayerIndex = session.current_player_index;
     
     console.log('🔄 Session updated - Current turn:', currentTurn, 'Player index:', currentPlayerIndex);
+    console.log('📊 Current state:', { 
+      hasQuestion: !!currentQuestion, 
+      showResults, 
+      hasAnswered, 
+      waitingForOthers,
+      prevTurn: prevTurnRef.current,
+      prevPlayerIndex: prevPlayerIndexRef.current
+    });
     
     // Check if turn or player actually changed
     const turnChanged = prevTurnRef.current !== null && prevTurnRef.current !== currentTurn;
