@@ -363,18 +363,6 @@ export default function GamePage() {
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Main Game Area */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Current Question - Show to ALL players */}
-            {currentQuestion && !showResults && !hasAnswered && (
-              <div className="flex justify-center">
-                <QuizQuestion
-                  question={currentQuestion}
-                  timeLimit={currentQuestion.time_limit}
-                  onSubmit={handleSubmitAnswer}
-                  disabled={false} // All players can answer
-                />
-              </div>
-            )}
-            
             {/* Debug info */}
             {process.env.NODE_ENV === 'development' && (
               <div className="bg-gray-800 text-white p-4 rounded text-xs">
@@ -383,12 +371,25 @@ export default function GamePage() {
                 <div>Has Answered: {hasAnswered ? 'Yes' : 'No'}</div>
                 <div>Waiting: {waitingForOthers ? 'Yes' : 'No'}</div>
                 <div>Is My Turn: {isMyTurn() ? 'Yes' : 'No'}</div>
+                <div>Last Result: {lastResult ? 'Yes' : 'No'}</div>
               </div>
             )}
 
-            {/* Waiting for other players */}
-            {waitingForOthers && showResults && (
-              <div className="bg-blue-50 rounded-lg shadow-lg p-8 max-w-2xl mx-auto mb-6">
+            {/* Priority 1: Show question if available and player hasn't answered */}
+            {currentQuestion && !hasAnswered ? (
+              <div className="flex justify-center">
+                <QuizQuestion
+                  question={currentQuestion}
+                  timeLimit={currentQuestion.time_limit}
+                  onSubmit={handleSubmitAnswer}
+                  disabled={false} // All players can answer
+                />
+              </div>
+            ) : null}
+
+            {/* Priority 2: Show waiting screen if answered but waiting for others */}
+            {hasAnswered && waitingForOthers && !currentQuestion ? (
+              <div className="bg-blue-50 rounded-lg shadow-lg p-8 max-w-2xl mx-auto">
                 <div className="text-center">
                   <div className="text-6xl mb-4 animate-pulse">⏳</div>
                   <h2 className="text-2xl font-bold text-blue-900 mb-2">
@@ -397,48 +398,23 @@ export default function GamePage() {
                   <p className="text-blue-700">
                     You submitted your answer! Waiting for everyone else to finish.
                   </p>
-                </div>
-              </div>
-            )}
-
-            {/* Results */}
-            {showResults && lastResult && (
-              <div className="bg-white rounded-lg shadow-lg p-8 max-w-2xl mx-auto">
-                <div className="text-center">
-                  <div
-                    className={`text-6xl mb-4 ${
-                      (lastResult.is_correct || lastResult.correct) ? '🎉' : '😞'
-                    }`}
-                  >
-                    {(lastResult.is_correct || lastResult.correct) ? '🎉' : '😞'}
-                  </div>
-                  <h2
-                    className={`text-3xl font-bold mb-2 ${
-                      (lastResult.is_correct || lastResult.correct) ? 'text-green-600' : 'text-red-600'
-                    }`}
-                  >
-                    {(lastResult.is_correct || lastResult.correct) ? 'Correct!' : 'Incorrect'}
-                  </h2>
-                  <p className="text-2xl text-gray-900 mb-4">
-                    +{lastResult.points_earned || lastResult.pointsEarned || 0} points
-                  </p>
-                  {!(lastResult.is_correct || lastResult.correct) && (
-                    <p className="text-gray-700 mb-2">
-                      Correct answer: <strong>{lastResult.correct_answer || lastResult.correctAnswer}</strong>
-                    </p>
-                  )}
-                  {lastResult.explanation && (
-                    <p className="text-gray-600 text-sm">{lastResult.explanation}</p>
+                  {lastResult && (
+                    <div className="mt-4 p-4 bg-white rounded-lg">
+                      <p className="text-sm text-gray-600">Your score:</p>
+                      <p className="text-2xl font-bold text-blue-900">
+                        +{lastResult.points_earned || lastResult.pointsEarned || 0} points
+                      </p>
+                    </div>
                   )}
                 </div>
               </div>
-            )}
+            ) : null}
 
-            {/* Dice Roller */}
-            {!currentQuestion && !showResults && isMyTurn() && (
+            {/* Priority 3: Show dice roller if it's player's turn and no question */}
+            {!currentQuestion && !hasAnswered && !waitingForOthers && isMyTurn() ? (
               <div className="bg-white rounded-lg shadow-lg p-8 flex flex-col items-center">
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">
-                  Roll the Dice!
+                  Your Turn - Roll the Dice!
                 </h2>
                 <DiceRoller
                   onRoll={handleDiceRoll}
@@ -446,22 +422,22 @@ export default function GamePage() {
                 />
                 {diceValue && (
                   <p className="mt-4 text-gray-700">
-                    Move forward {diceValue} spaces
+                    You rolled {diceValue}! Move forward {diceValue} spaces
                   </p>
                 )}
               </div>
-            )}
+            ) : null}
 
-            {/* Waiting */}
-            {!currentQuestion && !showResults && !isMyTurn() && (
+            {/* Priority 4: Show waiting screen if not player's turn */}
+            {!currentQuestion && !hasAnswered && !waitingForOthers && !isMyTurn() ? (
               <div className="bg-white rounded-lg shadow-lg p-8 text-center">
                 <div className="animate-pulse text-4xl mb-4">⏳</div>
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">
                   Waiting for Player {((session.current_player_index || 0) + 1)}&apos;s turn
                 </h2>
-                <p className="text-gray-600">It&apos;s their turn to play</p>
+                <p className="text-gray-600">It&apos;s their turn to roll the dice</p>
               </div>
-            )}
+            ) : null}
           </div>
 
           {/* Sidebar */}
