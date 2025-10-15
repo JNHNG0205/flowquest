@@ -61,20 +61,66 @@ export async function POST(request: NextRequest) {
     }
 
     const totalPlayers = roomQuestion.total_players || 0;
+    let newAnsweredCount = 1;
+    let allAnswered = false;
 
-    // Use atomic increment function to prevent race conditions
+    // Try atomic increment function first (preferred method)
     const { data: newCount, error: rpcError } = await supabase
       .rpc('increment_players_answered', {
         question_id: sessionQuestionId
       });
 
     if (rpcError) {
-      console.error('RPC error:', rpcError);
-      throw new Error('Failed to update answer count');
+      console.warn('RPC function not available, using fallback method:', rpcError.message);
+      
+      // Fallback: Use optimistic locking with multiple retries
+      let retries = 3;
+      let success = false;
+      
+      while (retries > 0 && !success) {
+        try {
+          // Get the latest count
+          const { data: latest } = await supabase
+            .from('room_questions')
+            .select('players_answered')
+            .eq('room_question_id', sessionQuestionId)
+            .single();
+          
+          const currentCount = latest?.players_answered || 0;
+          newAnsweredCount = currentCount + 1;
+          
+          // Try to update
+          const { error: updateError } = await supabase
+            .from('room_questions')
+            .update({
+              players_answered: newAnsweredCount,
+            })
+            .eq('room_question_id', sessionQuestionId)
+            .eq('players_answered', currentCount); // Optimistic lock
+          
+          if (!updateError) {
+            success = true;
+            allAnswered = newAnsweredCount >= totalPlayers;
+          } else {
+            retries--;
+            if (retries > 0) {
+              // Wait a bit before retry (exponential backoff)
+              await new Promise(resolve => setTimeout(resolve, 50 * (4 - retries)));
+            }
+          }
+        } catch (err) {
+          retries--;
+          if (retries === 0) {
+            console.error('Fallback update failed:', err);
+            // Don't throw - answer was already recorded
+          }
+        }
+      }
+    } else {
+      // RPC succeeded
+      newAnsweredCount = newCount || 1;
+      allAnswered = newAnsweredCount >= totalPlayers;
     }
-
-    const newAnsweredCount = newCount || 1;
-    const allAnswered = newAnsweredCount >= totalPlayers;
 
     // Update all_answered flag if all players have answered
     if (allAnswered) {
