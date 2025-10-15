@@ -161,18 +161,47 @@ export async function POST(request: NextRequest) {
       
       console.log('🎯 All players answered! Advancing turn for room:', roomId);
       
-      // Call next-turn API
-      const nextTurnResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/game/next-turn`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId: roomId }),
-      });
-      
-      const nextTurnResult = await nextTurnResponse.json();
-      console.log('Next turn result:', nextTurnResult);
-      
-      if (!nextTurnResponse.ok) {
-        console.error('Failed to advance turn:', nextTurnResult);
+      try {
+        // Get session and players
+        const { data: currentSession } = await supabase
+          .from('rooms')
+          .select('*')
+          .eq('room_id', roomId)
+          .single();
+
+        const { data: roomPlayers } = await supabase
+          .from('room_players')
+          .select('*')
+          .eq('room_id', roomId)
+          .order('room_player_id', { ascending: true });
+
+        if (currentSession && roomPlayers) {
+          const playerCount = roomPlayers.length;
+          const currentPlayerIndex = currentSession.current_player_index || 0;
+          const nextPlayerIndex = (currentPlayerIndex + 1) % playerCount;
+          
+          // If we've looped back to 0, increment the turn
+          const currentTurn = currentSession.current_turn || 0;
+          const nextTurn = nextPlayerIndex === 0 ? currentTurn + 1 : currentTurn;
+
+          // Update the session directly
+          const { error: turnError } = await supabase
+            .from('rooms')
+            .update({
+              current_player_index: nextPlayerIndex,
+              current_turn: nextTurn,
+            })
+            .eq('room_id', roomId);
+
+          if (turnError) {
+            console.error('Failed to advance turn:', turnError);
+          } else {
+            console.log('✅ Turn advanced:', { nextPlayerIndex, nextTurn });
+          }
+        }
+      } catch (turnErr) {
+        console.error('Error advancing turn:', turnErr);
+        // Don't throw - answer was still recorded successfully
       }
     }
 
