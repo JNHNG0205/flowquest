@@ -122,16 +122,51 @@ export default function GamePage() {
     const playerChanged = prevPlayerIndexRef.current !== null && prevPlayerIndexRef.current !== currentPlayerIndex;
     
     if (turnChanged || playerChanged) {
-      // Reset to dice phase for new turn
-      setGamePhase('dice');
-      setCurrentQuestion(null);
-      setHasAnswered(false);
-      setMyResult(null);
-      setDiceValue(null);
-      lastQuestionIdRef.current = null;
-      
-      // Force React to re-render by updating render key
-      setRenderKey(prev => prev + 1);
+      // If we're in answering phase and have a result, show results first
+      if (gamePhase === 'answering' && hasAnswered && myResult) {
+        setGamePhase('results');
+        
+        // Show results for 2 seconds, then advance to next turn
+        const resultsTimeout = setTimeout(() => {
+          setGamePhase('dice');
+          setCurrentQuestion(null);
+          setHasAnswered(false);
+          setMyResult(null);
+          setDiceValue(null);
+          lastQuestionIdRef.current = null;
+          
+          // Force React to re-render by updating render key
+          setRenderKey(prev => prev + 1);
+        }, 2000); // Show results for 2 seconds
+        
+        return () => clearTimeout(resultsTimeout);
+      } else if (gamePhase === 'results') {
+        // If we're already in results phase, show results for 2 seconds before advancing
+        const resultsTimeout = setTimeout(() => {
+          setGamePhase('dice');
+          setCurrentQuestion(null);
+          setHasAnswered(false);
+          setMyResult(null);
+          setDiceValue(null);
+          lastQuestionIdRef.current = null;
+          
+          // Force React to re-render by updating render key
+          setRenderKey(prev => prev + 1);
+        }, 2000); // Show results for 2 seconds
+        
+        return () => clearTimeout(resultsTimeout);
+      } else {
+        // Reset to dice phase for new turn
+        setGamePhase('dice');
+        setCurrentQuestion(null);
+        setHasAnswered(false);
+        setMyResult(null);
+        setDiceValue(null);
+        lastQuestionIdRef.current = null;
+        
+        // Force React to re-render by updating render key
+        setRenderKey(prev => prev + 1);
+      }
     }
     
     // Update refs
@@ -139,22 +174,12 @@ export default function GamePage() {
     prevPlayerIndexRef.current = currentPlayerIndex ?? null;
   }, [session?.current_turn, session?.current_player_index]);
 
-  // Show results phase when all players have answered
+  // Show results phase when all players have answered (detected by turn change)
   useEffect(() => {
     if (gamePhase === 'answering' && hasAnswered && myResult) {
-      // Show results after a delay (simulating waiting for all players)
-      const resultsTimeout = setTimeout(() => {
-        setGamePhase('results');
-        
-        // After 2 seconds, advance to next turn
-        const nextTurnTimeout = setTimeout(() => {
-          setGamePhase('dice');
-        }, 2000);
-        
-        return () => clearTimeout(nextTurnTimeout);
-      }, 3000); // Wait 3 seconds for all players to answer
-      
-      return () => clearTimeout(resultsTimeout);
+      // We're waiting for other players to finish
+      // The turn change will trigger when all players have answered
+      // and the turn change effect will handle showing results
     }
   }, [gamePhase, hasAnswered, myResult]);
 
@@ -275,7 +300,15 @@ export default function GamePage() {
       // Store my result and transition to answering phase (waiting for others)
       setMyResult(result.data);
       setHasAnswered(true);
-      setGamePhase('answering');
+      
+      // Check if all players have answered
+      if (result.data.all_answered) {
+        // All players have answered, show results immediately
+        setGamePhase('results');
+      } else {
+        // Still waiting for other players
+        setGamePhase('answering');
+      }
 
       // The API will automatically advance the turn when all players answer
       // The results phase will be triggered by the turn change
