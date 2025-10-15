@@ -46,6 +46,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check if player already answered this question
+    const { data: existingAttempt } = await supabase
+      .from('question_attempts')
+      .select('attempt_id')
+      .eq('room_question_id', sessionQuestionId)
+      .eq('room_player_id', playerId)
+      .single();
+
+    if (existingAttempt) {
+      return NextResponse.json(
+        { error: 'Already answered this question' },
+        { status: 400 }
+      );
+    }
+
     // Submit answer
     const { attempt, pointsEarned } = await submitAnswer(sessionQuestionId, playerId, answer, timeTaken);
 
@@ -157,6 +172,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Submit answer error:', error);
+    console.error('Error details:', JSON.stringify(error, null, 2));
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to submit answer' },
       { status: 500 }

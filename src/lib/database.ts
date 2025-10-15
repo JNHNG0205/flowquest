@@ -222,12 +222,16 @@ export async function submitAnswer(
 ): Promise<{ attempt: QuestionAttempt; pointsEarned: number }> {
   const supabase = await createClient(cookies());
 
+  console.log('submitAnswer called with:', { roomQuestionId, roomPlayerId, answerGiven, timeTaken });
+
   // Get the question to check correct answer
-  const { data: roomQuestion } = await supabase
+  const { data: roomQuestion, error: questionError } = await supabase
     .from('room_questions')
     .select('*, question(*)')
     .eq('room_question_id', roomQuestionId)
     .single();
+
+  console.log('Room question lookup:', { found: !!roomQuestion, error: questionError });
 
   if (!roomQuestion || !roomQuestion.question) {
     throw new Error('Question not found');
@@ -236,10 +240,12 @@ export async function submitAnswer(
   const isCorrect = answerGiven === roomQuestion.question.correct_answer;
   
   // Get current answer count to determine answer order
-  const { data: existingAttempts } = await supabase
+  const { data: existingAttempts, error: attemptsError } = await supabase
     .from('question_attempts')
     .select('attempt_id')
     .eq('room_question_id', roomQuestionId);
+
+  console.log('Existing attempts:', { count: existingAttempts?.length || 0, error: attemptsError });
 
   const answerOrder = (existingAttempts?.length || 0) + 1;
   
@@ -269,6 +275,8 @@ export async function submitAnswer(
     pointsEarned = Math.round(basePoints * (1 + timeBonus + speedBonus));
   }
 
+  console.log('Points calculated:', { isCorrect, answerOrder, pointsEarned });
+
   // Record attempt with answer_order
   const { data: attempt, error: attemptError } = await supabase
     .from('question_attempts')
@@ -282,7 +290,10 @@ export async function submitAnswer(
     .select()
     .single();
 
+  console.log('Attempt insert:', { success: !!attempt, error: attemptError });
+
   if (attemptError || !attempt) {
+    console.error('Failed to record attempt:', attemptError);
     throw new Error(`Failed to record attempt: ${attemptError?.message}`);
   }
 
