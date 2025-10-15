@@ -50,6 +50,7 @@ export default function GamePage() {
   const { session, players } = useGameRealtime(sessionId);
   const { currentQuestion: realtimeQuestion } = useQuizRealtime(sessionId);
 
+
   // Get current user
   useEffect(() => {
     const getUser = async () => {
@@ -269,11 +270,13 @@ export default function GamePage() {
       // Show quiz result for 2 seconds, then transition to waiting screen
       setTimeout(() => {
         setShowQuizResult(false);
-        setShowResults(true);
         
-        // Check if waiting for other players
+        // Always show results after quiz result, but only show waiting if not all answered
+        setShowResults(true);
         if (!result.data.all_answered) {
           setWaitingForOthers(true);
+        } else {
+          setWaitingForOthers(false);
         }
       }, 2000);
 
@@ -380,7 +383,7 @@ export default function GamePage() {
             )}
 
             {/* Priority 1: Show question if available and player hasn't answered */}
-            {currentQuestion && !hasAnswered && (
+            {currentQuestion && !hasAnswered && !showQuizResult && (
               <div className="flex justify-center">
                 <QuizQuestion
                   question={currentQuestion}
