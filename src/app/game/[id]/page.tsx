@@ -45,6 +45,7 @@ export default function GamePage() {
   const prevTurnRef = useRef<number | null>(null);
   const prevPlayerIndexRef = useRef<number | null>(null);
   const lastQuestionIdRef = useRef<string | null>(null);
+  const resultsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const { session, players } = useGameRealtime(sessionId);
   const { currentQuestion: realtimeQuestion } = useQuizRealtime(sessionId);
@@ -122,12 +123,18 @@ export default function GamePage() {
     const playerChanged = prevPlayerIndexRef.current !== null && prevPlayerIndexRef.current !== currentPlayerIndex;
     
     if (turnChanged || playerChanged) {
+      // Clear any existing results timeout
+      if (resultsTimeoutRef.current) {
+        clearTimeout(resultsTimeoutRef.current);
+        resultsTimeoutRef.current = null;
+      }
+      
       // If we're in answering phase and have a result, show results first
       if (gamePhase === 'answering' && hasAnswered && myResult) {
         setGamePhase('results');
         
         // Show results for 2 seconds, then advance to next turn
-        const resultsTimeout = setTimeout(() => {
+        resultsTimeoutRef.current = setTimeout(() => {
           setGamePhase('dice');
           setCurrentQuestion(null);
           setHasAnswered(false);
@@ -137,12 +144,18 @@ export default function GamePage() {
           
           // Force React to re-render by updating render key
           setRenderKey(prev => prev + 1);
+          resultsTimeoutRef.current = null;
         }, 2000); // Show results for 2 seconds
         
-        return () => clearTimeout(resultsTimeout);
+        return () => {
+          if (resultsTimeoutRef.current) {
+            clearTimeout(resultsTimeoutRef.current);
+            resultsTimeoutRef.current = null;
+          }
+        };
       } else if (gamePhase === 'results') {
         // If we're already in results phase, show results for 2 seconds before advancing
-        const resultsTimeout = setTimeout(() => {
+        resultsTimeoutRef.current = setTimeout(() => {
           setGamePhase('dice');
           setCurrentQuestion(null);
           setHasAnswered(false);
@@ -152,9 +165,15 @@ export default function GamePage() {
           
           // Force React to re-render by updating render key
           setRenderKey(prev => prev + 1);
+          resultsTimeoutRef.current = null;
         }, 2000); // Show results for 2 seconds
         
-        return () => clearTimeout(resultsTimeout);
+        return () => {
+          if (resultsTimeoutRef.current) {
+            clearTimeout(resultsTimeoutRef.current);
+            resultsTimeoutRef.current = null;
+          }
+        };
       } else {
         // Reset to dice phase for new turn
         setGamePhase('dice');
@@ -182,6 +201,15 @@ export default function GamePage() {
       // and the turn change effect will handle showing results
     }
   }, [gamePhase, hasAnswered, myResult]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (resultsTimeoutRef.current) {
+        clearTimeout(resultsTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const isMyTurn = () => {
     if (!session || !currentPlayer || !players.length) return false;
@@ -305,6 +333,25 @@ export default function GamePage() {
       if (result.data.all_answered) {
         // All players have answered, show results immediately
         setGamePhase('results');
+        
+        // Clear any existing timeout
+        if (resultsTimeoutRef.current) {
+          clearTimeout(resultsTimeoutRef.current);
+        }
+        
+        // Set a timeout to advance to next turn after showing results
+        resultsTimeoutRef.current = setTimeout(() => {
+          setGamePhase('dice');
+          setCurrentQuestion(null);
+          setHasAnswered(false);
+          setMyResult(null);
+          setDiceValue(null);
+          lastQuestionIdRef.current = null;
+          
+          // Force React to re-render by updating render key
+          setRenderKey(prev => prev + 1);
+          resultsTimeoutRef.current = null;
+        }, 2000); // Show results for 2 seconds
       } else {
         // Still waiting for other players
         setGamePhase('answering');
