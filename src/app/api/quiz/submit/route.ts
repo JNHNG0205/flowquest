@@ -46,15 +46,45 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Submit answer
+        // Submit answer
     const { attempt, pointsEarned } = await submitAnswer(sessionQuestionId, playerId, answer, timeTaken);
 
-    // Get question details for response
+    // Update room_question tracking (increment players_answered)
     const { data: roomQuestion } = await supabase
       .from('room_questions')
       .select('*, question(*)')
       .eq('room_question_id', sessionQuestionId)
       .single();
+
+    if (!roomQuestion) {
+      throw new Error('Room question not found');
+    }
+
+    const currentAnswered = roomQuestion.players_answered || 0;
+    const totalPlayers = roomQuestion.total_players || 0;
+    const newAnsweredCount = currentAnswered + 1;
+    const allAnswered = newAnsweredCount >= totalPlayers;
+
+    // Update the room_question
+    await supabase
+      .from('room_questions')
+      .update({
+        players_answered: newAnsweredCount,
+        all_answered: allAnswered,
+      })
+      .eq('room_question_id', sessionQuestionId);
+
+    // If all players answered, automatically advance the turn
+    if (allAnswered) {
+      const roomId = roomQuestion.room_id;
+      
+      // Call next-turn API
+      await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/game/next-turn`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: roomId }),
+      });
+    }
 
     return NextResponse.json({
       success: true,
@@ -64,6 +94,9 @@ export async function POST(request: NextRequest) {
         points_earned: pointsEarned,
         correct_answer: roomQuestion?.question?.correct_answer,
         explanation: null,
+        all_answered: allAnswered,
+        players_answered: newAnsweredCount,
+        total_players: totalPlayers,
       },
     });
   } catch (error) {

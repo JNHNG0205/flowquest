@@ -37,6 +37,8 @@ export default function GamePage() {
     explanation?: string;
   } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [hasAnswered, setHasAnswered] = useState(false);
+  const [waitingForOthers, setWaitingForOthers] = useState(false);
 
   const { session, players } = useGameRealtime(sessionId);
   const { currentQuestion: realtimeQuestion } = useQuizRealtime(sessionId);
@@ -64,6 +66,8 @@ export default function GamePage() {
       setCurrentQuestion(realtimeQuestion as CurrentQuestion);
       setShowResults(false);
       setDiceValue(null);
+      setHasAnswered(false); // Reset for new question
+      setWaitingForOthers(false);
     }
   }, [realtimeQuestion]);
 
@@ -183,11 +187,15 @@ export default function GamePage() {
 
       setLastResult(result.data);
       setShowResults(true);
+      setHasAnswered(true);
 
-      // Advance turn after showing results
-      setTimeout(() => {
-        advanceTurn();
-      }, 3000);
+      // Check if waiting for other players
+      if (!result.data.all_answered) {
+        setWaitingForOthers(true);
+      }
+
+      // Turn will advance automatically when all players answer (handled by API)
+      // No need to call advanceTurn manually
     } catch (error) {
       console.error('Submit answer error:', error);
       alert('Failed to submit answer');
@@ -239,15 +247,30 @@ export default function GamePage() {
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Main Game Area */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Current Question */}
-            {currentQuestion && !showResults && (
+            {/* Current Question - Show to ALL players */}
+            {currentQuestion && !showResults && !hasAnswered && (
               <div className="flex justify-center">
                 <QuizQuestion
                   question={currentQuestion}
                   timeLimit={currentQuestion.time_limit}
                   onSubmit={handleSubmitAnswer}
-                  disabled={!isMyTurn()}
+                  disabled={false} // All players can answer
                 />
+              </div>
+            )}
+
+            {/* Waiting for other players */}
+            {waitingForOthers && showResults && (
+              <div className="bg-blue-50 rounded-lg shadow-lg p-8 max-w-2xl mx-auto mb-6">
+                <div className="text-center">
+                  <div className="text-6xl mb-4 animate-pulse">⏳</div>
+                  <h2 className="text-2xl font-bold text-blue-900 mb-2">
+                    Waiting for other players...
+                  </h2>
+                  <p className="text-blue-700">
+                    You submitted your answer! Waiting for everyone else to finish.
+                  </p>
+                </div>
               </div>
             )}
 

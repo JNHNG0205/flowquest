@@ -34,13 +34,35 @@ export async function POST(request: NextRequest) {
     // Get random question
     const question = await getRandomQuestion(sessionId, difficulty);
     
-    // Create room question
+    // Get total number of active players in the room
+    const { data: players, error: playersError } = await supabase
+      .from('room_players')
+      .select('room_player_id')
+      .eq('room_id', sessionId);
+
+    if (playersError) {
+      throw new Error('Failed to fetch players');
+    }
+
+    const totalPlayers = players?.length || 0;
+    
+    // Create room question with total_players set
     const roomQuestion = await createRoomQuestion(
       sessionId,
       question.question_id,
       roundNumber,
       getTimeLimit(question.difficulty)
     );
+
+    // Update the room_question with player tracking info
+    await supabase
+      .from('room_questions')
+      .update({
+        total_players: totalPlayers,
+        players_answered: 0,
+        all_answered: false,
+      })
+      .eq('room_question_id', roomQuestion.room_question_id);
 
     // Get time limit based on difficulty
     const timeLimit = getTimeLimit(question.difficulty);

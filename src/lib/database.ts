@@ -235,7 +235,15 @@ export async function submitAnswer(
 
   const isCorrect = answerGiven === roomQuestion.question.correct_answer;
   
-  // Calculate points based on correctness, difficulty, and time
+  // Get current answer count to determine answer order
+  const { data: existingAttempts } = await supabase
+    .from('question_attempts')
+    .select('attempt_id')
+    .eq('room_question_id', roomQuestionId);
+
+  const answerOrder = (existingAttempts?.length || 0) + 1;
+  
+  // Calculate points based on correctness, difficulty, time, and answer order
   let pointsEarned = 0;
   if (isCorrect) {
     const difficulty = roomQuestion.question.difficulty?.toLowerCase() || 'medium';
@@ -248,12 +256,20 @@ export async function submitAnswer(
 
     const timeLimit = roomQuestion.time_limit || getTimeLimit(difficulty);
 
-    // Time bonus: faster answers get more points (up to 50% bonus)
-    const timeBonus = Math.max(0, (timeLimit - timeTaken) / timeLimit) * 0.5;
-    pointsEarned = Math.round(basePoints * (1 + timeBonus));
+    // Time bonus: faster answers get more points (up to 30% bonus)
+    const timeBonus = Math.max(0, (timeLimit - timeTaken) / timeLimit) * 0.3;
+    
+    // Speed bonus: first to answer gets extra points (up to 20% bonus)
+    // 1st place: +20%, 2nd place: +10%, 3rd place: +5%
+    let speedBonus = 0;
+    if (answerOrder === 1) speedBonus = 0.20;
+    else if (answerOrder === 2) speedBonus = 0.10;
+    else if (answerOrder === 3) speedBonus = 0.05;
+    
+    pointsEarned = Math.round(basePoints * (1 + timeBonus + speedBonus));
   }
 
-  // Record attempt
+  // Record attempt with answer_order
   const { data: attempt, error: attemptError } = await supabase
     .from('question_attempts')
     .insert({
@@ -261,6 +277,7 @@ export async function submitAnswer(
       room_player_id: roomPlayerId,
       is_correct: isCorrect,
       answer_time: timeTaken,
+      answer_order: answerOrder,
     })
     .select()
     .single();
