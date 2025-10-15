@@ -365,18 +365,24 @@ export default function GamePage() {
           <div className="lg:col-span-2 space-y-6">
             {/* Debug info */}
             {process.env.NODE_ENV === 'development' && (
-              <div className="bg-gray-800 text-white p-4 rounded text-xs">
+              <div className="bg-gray-800 text-white p-4 rounded text-xs space-y-1">
                 <div>Has Question: {currentQuestion ? 'Yes' : 'No'}</div>
                 <div>Show Results: {showResults ? 'Yes' : 'No'}</div>
                 <div>Has Answered: {hasAnswered ? 'Yes' : 'No'}</div>
                 <div>Waiting: {waitingForOthers ? 'Yes' : 'No'}</div>
                 <div>Is My Turn: {isMyTurn() ? 'Yes' : 'No'}</div>
                 <div>Last Result: {lastResult ? 'Yes' : 'No'}</div>
+                <div className="pt-2 border-t border-gray-600 mt-2">
+                  <div>Condition 1 (Question): {currentQuestion && !hasAnswered ? '✅ YES' : '❌ NO'}</div>
+                  <div>Condition 2 (Waiting): {hasAnswered && waitingForOthers && !currentQuestion ? '✅ YES' : '❌ NO'}</div>
+                  <div>Condition 3 (Dice): {!currentQuestion && !hasAnswered && !waitingForOthers && isMyTurn() ? '✅ YES' : '❌ NO'}</div>
+                  <div>Condition 4 (Wait Turn): {!currentQuestion && !hasAnswered && !waitingForOthers && !isMyTurn() ? '✅ YES' : '❌ NO'}</div>
+                </div>
               </div>
             )}
 
             {/* Priority 1: Show question if available and player hasn't answered */}
-            {currentQuestion && !hasAnswered ? (
+            {currentQuestion && !hasAnswered && (
               <div className="flex justify-center">
                 <QuizQuestion
                   question={currentQuestion}
@@ -385,10 +391,10 @@ export default function GamePage() {
                   disabled={false} // All players can answer
                 />
               </div>
-            ) : null}
+            )}
 
             {/* Priority 2: Show waiting screen if answered but waiting for others */}
-            {hasAnswered && waitingForOthers && !currentQuestion ? (
+            {hasAnswered && waitingForOthers && !currentQuestion && (
               <div className="bg-blue-50 rounded-lg shadow-lg p-8 max-w-2xl mx-auto">
                 <div className="text-center">
                   <div className="text-6xl mb-4 animate-pulse">⏳</div>
@@ -408,10 +414,10 @@ export default function GamePage() {
                   )}
                 </div>
               </div>
-            ) : null}
+            )}
 
             {/* Priority 3: Show dice roller if it's player's turn and no question */}
-            {!currentQuestion && !hasAnswered && !waitingForOthers && isMyTurn() ? (
+            {!currentQuestion && !hasAnswered && !waitingForOthers && isMyTurn() && (
               <div className="bg-white rounded-lg shadow-lg p-8 flex flex-col items-center">
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">
                   Your Turn - Roll the Dice!
@@ -426,10 +432,10 @@ export default function GamePage() {
                   </p>
                 )}
               </div>
-            ) : null}
+            )}
 
             {/* Priority 4: Show waiting screen if not player's turn */}
-            {!currentQuestion && !hasAnswered && !waitingForOthers && !isMyTurn() ? (
+            {!currentQuestion && !hasAnswered && !waitingForOthers && !isMyTurn() && (
               <div className="bg-white rounded-lg shadow-lg p-8 text-center">
                 <div className="animate-pulse text-4xl mb-4">⏳</div>
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">
@@ -437,7 +443,21 @@ export default function GamePage() {
                 </h2>
                 <p className="text-gray-600">It&apos;s their turn to roll the dice</p>
               </div>
-            ) : null}
+            )}
+
+            {/* Fallback: Show if nothing else matches */}
+            {!currentQuestion && 
+             !(hasAnswered && waitingForOthers) && 
+             !((!hasAnswered && !waitingForOthers && isMyTurn())) && 
+             !((!hasAnswered && !waitingForOthers && !isMyTurn())) && (
+              <div className="bg-yellow-50 rounded-lg shadow-lg p-8 text-center">
+                <div className="text-4xl mb-4">🤔</div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                  Loading game state...
+                </h2>
+                <p className="text-gray-600 text-sm">Check debug panel above</p>
+              </div>
+            )}
           </div>
 
           {/* Sidebar */}
