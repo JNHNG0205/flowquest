@@ -58,7 +58,6 @@ function JoinRoomContent() {
   }, [searchParams]);
 
   const handleQRScan = (data: string) => {
-    console.log('QR Scanned:', data);
     setShowScanner(false);
 
     // Extract room code from URL

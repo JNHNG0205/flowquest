@@ -69,8 +69,6 @@ export default function GamePage() {
   // Update question from realtime
   useEffect(() => {
     if (realtimeQuestion) {
-      console.log('📩 Received realtime question:', realtimeQuestion);
-      console.log('📩 Current session state:', { turn: session?.current_turn, playerIndex: session?.current_player_index });
       
       const roomQuestion = realtimeQuestion as any;
       
@@ -78,7 +76,6 @@ export default function GamePage() {
       if (roomQuestion.question) {
         // Nested structure from realtime - flatten it
         let options = roomQuestion.question.options;
-        console.log('Question options before parsing:', options);
         
         if (typeof options === 'string') {
           try {
@@ -97,19 +94,15 @@ export default function GamePage() {
           time_limit: roomQuestion.time_limit || 60,
         };
         
-        console.log('Flattened question:', flattenedQuestion);
-        console.log('🎯 SETTING NEW QUESTION - clearing results and answer states');
         setCurrentQuestion(flattenedQuestion as CurrentQuestion);
         lastQuestionIdRef.current = roomQuestion.room_question_id; // Track question ID
       } else {
         // Already flat structure
-        console.log('🎯 SETTING NEW QUESTION - clearing results and answer states');
         setCurrentQuestion(roomQuestion as CurrentQuestion);
         lastQuestionIdRef.current = roomQuestion.room_question_id; // Track question ID
       }
       
       // IMPORTANT: Clear results when new question arrives
-      console.log('🧹 Clearing results/answers for NEW question');
       setShowResults(false);
       setDiceValue(null);
       setHasAnswered(false); // Reset for new question
@@ -125,23 +118,13 @@ export default function GamePage() {
     const currentTurn = session.current_turn;
     const currentPlayerIndex = session.current_player_index;
     
-    console.log('🔄 Session updated - Current turn:', currentTurn, 'Player index:', currentPlayerIndex);
     
     // Check if turn or player actually changed
     const turnChanged = prevTurnRef.current !== null && prevTurnRef.current !== currentTurn;
     const playerChanged = prevPlayerIndexRef.current !== null && prevPlayerIndexRef.current !== currentPlayerIndex;
     
-    console.log('🔍 Change detection:', { 
-      turnChanged, 
-      playerChanged,
-      prevTurn: prevTurnRef.current,
-      currentTurn,
-      prevPlayerIndex: prevPlayerIndexRef.current,
-      currentPlayerIndex 
-    });
     
     if (turnChanged || playerChanged) {
-      console.log('✅✅✅ TURN/PLAYER CHANGED - CLEARING ALL STATE NOW ✅✅✅');
       
       // Clear everything - fresh start for the new turn
       setCurrentQuestion(null);
@@ -155,7 +138,6 @@ export default function GamePage() {
       // Force React to re-render by updating render key
       setRenderKey(prev => prev + 1);
       
-      console.log('State cleared - showResults set to FALSE, currentQuestion set to NULL');
     }
     
     // Update refs

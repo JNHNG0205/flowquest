@@ -61,12 +61,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('💾 Starting answer submission for player:', playerId);
 
     // Submit answer
     const { attempt, pointsEarned } = await submitAnswer(sessionQuestionId, playerId, answer, timeTaken);
     
-    console.log('✅ Answer submitted successfully:', { attemptId: attempt.attempt_id, pointsEarned });
 
     // Get room_question info
     const { data: roomQuestion } = await supabase
@@ -83,7 +81,6 @@ export async function POST(request: NextRequest) {
     let newAnsweredCount = 1;
     let allAnswered = false;
 
-    console.log('📊 Before increment - Total players:', totalPlayers, 'Players answered:', roomQuestion.players_answered);
 
     // Try atomic increment function first (preferred method)
     const { data: newCount, error: rpcError } = await supabase
@@ -143,7 +140,6 @@ export async function POST(request: NextRequest) {
       allAnswered = newAnsweredCount >= totalPlayers;
     }
 
-    console.log('📊 After increment - Players answered:', newAnsweredCount, 'Total:', totalPlayers, 'All answered:', allAnswered);
 
     // Update all_answered flag if all players have answered
     if (allAnswered) {
@@ -152,14 +148,12 @@ export async function POST(request: NextRequest) {
         .update({ all_answered: true })
         .eq('room_question_id', sessionQuestionId);
       
-      console.log('Updated all_answered flag:', flagError ? 'FAILED' : 'SUCCESS', flagError);
     }
 
     // If all players answered, automatically advance the turn
     if (allAnswered) {
       const roomId = roomQuestion.room_id;
       
-      console.log('🎯 All players answered! Advancing turn for room:', roomId);
       
       try {
         // Get session and players
@@ -196,7 +190,6 @@ export async function POST(request: NextRequest) {
           if (turnError) {
             console.error('Failed to advance turn:', turnError);
           } else {
-            console.log('✅ Turn advanced:', { nextPlayerIndex, nextTurn });
           }
         }
       } catch (turnErr) {

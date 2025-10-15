@@ -222,7 +222,6 @@ export async function submitAnswer(
 ): Promise<{ attempt: QuestionAttempt; pointsEarned: number }> {
   const supabase = await createClient(cookies());
 
-  console.log('submitAnswer called with:', { roomQuestionId, roomPlayerId, answerGiven, timeTaken });
 
   // Get the question to check correct answer
   const { data: roomQuestion, error: questionError } = await supabase
@@ -231,7 +230,6 @@ export async function submitAnswer(
     .eq('room_question_id', roomQuestionId)
     .single();
 
-  console.log('Room question lookup:', { found: !!roomQuestion, error: questionError });
 
   if (!roomQuestion || !roomQuestion.question) {
     throw new Error('Question not found');
@@ -239,7 +237,6 @@ export async function submitAnswer(
 
   const isCorrect = answerGiven === roomQuestion.question.correct_answer;
   
-  console.log('Points calculated:', { isCorrect });
 
   // First, insert the attempt WITHOUT answer_order
   // We'll calculate order based on created_at timestamp after insertion
@@ -255,7 +252,6 @@ export async function submitAnswer(
     .select()
     .single();
 
-  console.log('Attempt insert:', { success: !!attempt, error: attemptError });
 
   if (attemptError || !attempt) {
     console.error('Failed to record attempt:', attemptError);
@@ -288,7 +284,6 @@ export async function submitAnswer(
       // Don't throw - the answer was still recorded
     }
 
-    console.log('Answer order assigned:', answerOrder);
   } catch (orderError) {
     console.error('Error calculating answer order:', orderError);
     // Continue anyway - answer was recorded successfully
@@ -320,7 +315,6 @@ export async function submitAnswer(
     pointsEarned = Math.round(basePoints * (1 + timeBonus + speedBonus));
   }
 
-  console.log('Final points calculated:', { pointsEarned });
 
   // Update player score
   if (pointsEarned > 0) {
@@ -343,7 +337,6 @@ export async function submitAnswer(
         if (scoreError) {
           console.error('Failed to update score:', scoreError);
         } else {
-          console.log('Score updated successfully:', (currentPlayer.score || 0) + pointsEarned);
         }
       }
     } catch (scoreErr) {

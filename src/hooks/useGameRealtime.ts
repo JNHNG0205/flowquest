@@ -51,14 +51,8 @@ export function useGameRealtime(roomId: string | null) {
           filter: `room_id=eq.${roomId}`,
         },
         (payload) => {
-          console.log('🎮 Room update received:', payload);
           if (payload.eventType === 'UPDATE') {
             const newSession = payload.new as Room;
-            console.log('🔄 Setting NEW session state:', { 
-              new_turn: newSession.current_turn,
-              new_player: newSession.current_player_index,
-              room_id: newSession.room_id
-            });
             // Force a new object reference to trigger React re-render
             setSession({ ...newSession });
           }
@@ -73,7 +67,6 @@ export function useGameRealtime(roomId: string | null) {
           filter: `room_id=eq.${roomId}`,
         },
         async (payload) => {
-          console.log('Player update:', payload);
           // Refetch all players on any change
           const { data: playersData } = await supabase
             .from('room_players')
@@ -115,7 +108,6 @@ export function useQuizRealtime(roomId: string | null) {
           filter: `room_id=eq.${roomId}`,
         },
         async (payload) => {
-          console.log('New question:', payload);
           // Fetch full question details
           const { data } = await supabase
             .from('room_questions')
@@ -137,7 +129,6 @@ export function useQuizRealtime(roomId: string | null) {
           table: 'question_attempts',
         },
         async (payload) => {
-          console.log('New answer:', payload);
           setAnswers((prev) => ({
             ...prev,
             [payload.new.room_player_id]: payload.new,

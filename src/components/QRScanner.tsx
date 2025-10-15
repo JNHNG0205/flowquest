@@ -60,7 +60,6 @@ export function QRScanner({ onScan, onError, onClose }: QRScannerProps) {
         let cameraId: string | undefined;
         try {
           const devices = await Html5Qrcode.getCameras();
-          console.log('Available cameras:', devices);
           
           // Find back camera (environment facing)
           const backCamera = devices.find(device => 
@@ -70,7 +69,6 @@ export function QRScanner({ onScan, onError, onClose }: QRScannerProps) {
           );
           
           cameraId = backCamera?.id || devices[devices.length - 1]?.id;
-          console.log('Selected camera:', backCamera?.label || 'Default camera');
         } catch (cameraError) {
           console.error('Error getting cameras:', cameraError);
         }
@@ -84,7 +82,6 @@ export function QRScanner({ onScan, onError, onClose }: QRScannerProps) {
             (decodedText) => {
               if (!hasScannedRef.current) {
                 hasScannedRef.current = true;
-                console.log('QR Code decoded:', decodedText);
                 onScan(decodedText);
                 
                 scanner.stop().then(() => {
@@ -104,7 +101,6 @@ export function QRScanner({ onScan, onError, onClose }: QRScannerProps) {
             (decodedText) => {
               if (!hasScannedRef.current) {
                 hasScannedRef.current = true;
-                console.log('QR Code decoded:', decodedText);
                 onScan(decodedText);
                 
                 scanner.stop().then(() => {
