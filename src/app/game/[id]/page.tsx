@@ -125,7 +125,7 @@ export default function GamePage() {
     
     if (turnChanged || playerChanged) {
       // If we have a result from the previous question, show results first
-      if (gamePhase === 'answering' && hasAnswered && myResult) {
+      if (hasAnswered) {
         setShowResults(true);
         setGamePhase('results');
       } else {
@@ -148,6 +148,16 @@ export default function GamePage() {
     prevPlayerIndexRef.current = currentPlayerIndex ?? null;
   }, [session?.current_turn, session?.current_player_index]);
 
+  // Clear results when new question arrives
+  useEffect(() => {
+    if (realtimeQuestion && showResults) {
+      // New question arrived, clear results and reset state
+      setShowResults(false);
+      setGamePhase('question');
+      setHasAnswered(false);
+      setMyResult(null);
+    }
+  }, [realtimeQuestion, showResults]);
 
   const isMyTurn = () => {
     if (!session || !currentPlayer || !players.length) return false;
@@ -429,23 +439,37 @@ export default function GamePage() {
             )}
 
             {/* Phase 4: Results Phase - Show results to ALL players */}
-            {gamePhase === 'results' && showResults && myResult && (
+            {gamePhase === 'results' && showResults && (
               <div className="bg-white rounded-lg shadow-lg p-8 max-w-2xl mx-auto">
                 <div className="text-center">
-                  <div className={`text-6xl mb-4 ${myResult.is_correct || myResult.correct ? 'text-green-500' : 'text-red-500'}`}>
-                    {myResult.is_correct || myResult.correct ? '✅' : '❌'}
-                  </div>
-                  <h2 className={`text-2xl font-bold mb-2 ${myResult.is_correct || myResult.correct ? 'text-green-900' : 'text-red-900'}`}>
-                    {myResult.is_correct || myResult.correct ? 'Correct!' : 'Incorrect'}
-                  </h2>
-                  <p className="text-gray-700 mb-4">
-                    {myResult.is_correct || myResult.correct 
-                      ? `You earned ${myResult.points_earned || myResult.pointsEarned || 0} points!`
-                      : `The correct answer was: ${myResult.correct_answer || myResult.correctAnswer}`
-                    }
-                  </p>
+                  {myResult ? (
+                    <>
+                      <div className={`text-6xl mb-4 ${myResult.is_correct || myResult.correct ? 'text-green-500' : 'text-red-500'}`}>
+                        {myResult.is_correct || myResult.correct ? '✅' : '❌'}
+                      </div>
+                      <h2 className={`text-2xl font-bold mb-2 ${myResult.is_correct || myResult.correct ? 'text-green-900' : 'text-red-900'}`}>
+                        {myResult.is_correct || myResult.correct ? 'Correct!' : 'Incorrect'}
+                      </h2>
+                      <p className="text-gray-700 mb-4">
+                        {myResult.is_correct || myResult.correct 
+                          ? `You earned ${myResult.points_earned || myResult.pointsEarned || 0} points!`
+                          : `The correct answer was: ${myResult.correct_answer || myResult.correctAnswer}`
+                        }
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-6xl mb-4 text-gray-500">📊</div>
+                      <h2 className="text-2xl font-bold mb-2 text-gray-900">
+                        Round Complete!
+                      </h2>
+                      <p className="text-gray-700 mb-4">
+                        All players have answered. Moving to next turn...
+                      </p>
+                    </>
+                  )}
                   <div className="animate-pulse text-sm text-gray-500">
-                    Showing results for 2 seconds...
+                    Showing results...
                   </div>
                 </div>
               </div>
