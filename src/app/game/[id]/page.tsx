@@ -63,10 +63,16 @@ export default function GamePage() {
   // Update question from realtime
   useEffect(() => {
     if (realtimeQuestion) {
-      // Ensure options is properly formatted as an array
-      const question = realtimeQuestion as any;
-      if (question.question) {
-        let options = question.question.options;
+      console.log('Received realtime question:', realtimeQuestion);
+      
+      const roomQuestion = realtimeQuestion as any;
+      
+      // Check if this is a nested structure (from realtime) or flat (from API)
+      if (roomQuestion.question) {
+        // Nested structure from realtime - flatten it
+        let options = roomQuestion.question.options;
+        console.log('Question options before parsing:', options);
+        
         if (typeof options === 'string') {
           try {
             options = JSON.parse(options);
@@ -75,10 +81,22 @@ export default function GamePage() {
             options = [];
           }
         }
-        question.question.options = options || [];
+        
+        // Flatten the structure to match CurrentQuestion interface
+        const flattenedQuestion = {
+          ...roomQuestion.question,
+          options: options || [],
+          room_question_id: roomQuestion.room_question_id,
+          time_limit: roomQuestion.time_limit || 60,
+        };
+        
+        console.log('Flattened question:', flattenedQuestion);
+        setCurrentQuestion(flattenedQuestion as CurrentQuestion);
+      } else {
+        // Already flat structure
+        setCurrentQuestion(roomQuestion as CurrentQuestion);
       }
       
-      setCurrentQuestion(question as CurrentQuestion);
       setShowResults(false);
       setDiceValue(null);
       setHasAnswered(false); // Reset for new question
@@ -271,6 +289,17 @@ export default function GamePage() {
                   onSubmit={handleSubmitAnswer}
                   disabled={false} // All players can answer
                 />
+              </div>
+            )}
+            
+            {/* Debug info */}
+            {process.env.NODE_ENV === 'development' && (
+              <div className="bg-gray-800 text-white p-4 rounded text-xs">
+                <div>Has Question: {currentQuestion ? 'Yes' : 'No'}</div>
+                <div>Show Results: {showResults ? 'Yes' : 'No'}</div>
+                <div>Has Answered: {hasAnswered ? 'Yes' : 'No'}</div>
+                <div>Waiting: {waitingForOthers ? 'Yes' : 'No'}</div>
+                <div>Is My Turn: {isMyTurn() ? 'Yes' : 'No'}</div>
               </div>
             )}
 
