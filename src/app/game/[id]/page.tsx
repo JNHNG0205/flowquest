@@ -46,6 +46,7 @@ export default function GamePage() {
   const prevTurnRef = useRef<number | null>(null);
   const prevPlayerIndexRef = useRef<number | null>(null);
   const lastQuestionIdRef = useRef<string | null>(null);
+  const resultsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const { session, players } = useGameRealtime(sessionId);
   const { currentQuestion: realtimeQuestion } = useQuizRealtime(sessionId);
@@ -148,16 +149,57 @@ export default function GamePage() {
     prevPlayerIndexRef.current = currentPlayerIndex ?? null;
   }, [session?.current_turn, session?.current_player_index]);
 
-  // Clear results when new question arrives
+  // Handle results phase with synchronized timeout
   useEffect(() => {
-    if (realtimeQuestion && showResults) {
-      // New question arrived, clear results and reset state
+    if (gamePhase === 'results' && showResults) {
+      // Clear any existing timeout
+      if (resultsTimeoutRef.current) {
+        clearTimeout(resultsTimeoutRef.current);
+      }
+      
+      // Show results for 2 seconds, then transition to next question
+      resultsTimeoutRef.current = setTimeout(() => {
+        setShowResults(false);
+        setGamePhase('question');
+        setHasAnswered(false);
+        setMyResult(null);
+        resultsTimeoutRef.current = null;
+      }, 2000); // Show results for 2 seconds
+      
+      return () => {
+        if (resultsTimeoutRef.current) {
+          clearTimeout(resultsTimeoutRef.current);
+          resultsTimeoutRef.current = null;
+        }
+      };
+    }
+  }, [gamePhase, showResults]);
+
+  // Handle new question arrival - clear results if we're showing them
+  useEffect(() => {
+    if (realtimeQuestion && gamePhase === 'results') {
+      // Clear any pending results timeout
+      if (resultsTimeoutRef.current) {
+        clearTimeout(resultsTimeoutRef.current);
+        resultsTimeoutRef.current = null;
+      }
+      
+      // New question arrived while showing results, clear results and reset state
       setShowResults(false);
       setGamePhase('question');
       setHasAnswered(false);
       setMyResult(null);
     }
-  }, [realtimeQuestion, showResults]);
+  }, [realtimeQuestion, gamePhase]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (resultsTimeoutRef.current) {
+        clearTimeout(resultsTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const isMyTurn = () => {
     if (!session || !currentPlayer || !players.length) return false;
