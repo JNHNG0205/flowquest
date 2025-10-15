@@ -39,6 +39,7 @@ export default function GamePage() {
   const [loading, setLoading] = useState(false);
   const [hasAnswered, setHasAnswered] = useState(false);
   const [waitingForOthers, setWaitingForOthers] = useState(false);
+  const [renderKey, setRenderKey] = useState(0); // Force re-render key
   
   // Track previous turn/player to detect changes
   const prevTurnRef = useRef<number | null>(null);
@@ -150,6 +151,9 @@ export default function GamePage() {
       setWaitingForOthers(false);
       setDiceValue(null);
       lastQuestionIdRef.current = null;
+      
+      // Force React to re-render by updating render key
+      setRenderKey(prev => prev + 1);
       
       console.log('State cleared - showResults set to FALSE, currentQuestion set to NULL');
     }
@@ -362,10 +366,11 @@ export default function GamePage() {
 
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Main Game Area */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-6" key={renderKey}>
             {/* Debug info */}
             {process.env.NODE_ENV === 'development' && (
               <div className="bg-gray-800 text-white p-4 rounded text-xs space-y-1">
+                <div className="font-bold text-green-400">Render Key: {renderKey}</div>
                 <div>Has Question: {currentQuestion ? 'Yes' : 'No'}</div>
                 <div>Show Results: {showResults ? 'Yes' : 'No'}</div>
                 <div>Has Answered: {hasAnswered ? 'Yes' : 'No'}</div>
