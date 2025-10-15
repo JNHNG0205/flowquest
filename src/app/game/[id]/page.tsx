@@ -124,6 +124,15 @@ export default function GamePage() {
     const turnChanged = prevTurnRef.current !== null && prevTurnRef.current !== currentTurn;
     const playerChanged = prevPlayerIndexRef.current !== null && prevPlayerIndexRef.current !== currentPlayerIndex;
     
+    console.log('🔍 Change detection:', { 
+      turnChanged, 
+      playerChanged,
+      prevTurn: prevTurnRef.current,
+      currentTurn,
+      prevPlayerIndex: prevPlayerIndexRef.current,
+      currentPlayerIndex 
+    });
+    
     if (turnChanged || playerChanged) {
       console.log('✅ Turn/Player changed! Clearing question state...');
       // Clear everything - fresh start for the new turn

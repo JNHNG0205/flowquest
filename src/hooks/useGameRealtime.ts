@@ -51,9 +51,16 @@ export function useGameRealtime(roomId: string | null) {
           filter: `room_id=eq.${roomId}`,
         },
         (payload) => {
-          console.log('Room update:', payload);
+          console.log('🎮 Room update received:', payload);
           if (payload.eventType === 'UPDATE') {
-            setSession(payload.new as Room);
+            const newSession = payload.new as Room;
+            console.log('🔄 Updating session state:', { 
+              old_turn: session?.current_turn, 
+              new_turn: newSession.current_turn,
+              old_player: session?.current_player_index,
+              new_player: newSession.current_player_index
+            });
+            setSession(newSession);
           }
         }
       )
