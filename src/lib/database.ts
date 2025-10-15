@@ -263,22 +263,36 @@ export async function submitAnswer(
   }
 
   // Now get all attempts ordered by creation time to determine answer order
-  const { data: allAttempts } = await supabase
-    .from('question_attempts')
-    .select('attempt_id, created_at')
-    .eq('room_question_id', roomQuestionId)
-    .order('created_at', { ascending: true });
+  let answerOrder = 1;
+  try {
+    const { data: allAttempts } = await supabase
+      .from('question_attempts')
+      .select('attempt_id, created_at')
+      .eq('room_question_id', roomQuestionId)
+      .order('created_at', { ascending: true });
 
-  // Find this attempt's order (1-indexed)
-  const answerOrder = (allAttempts?.findIndex(a => a.attempt_id === attempt.attempt_id) ?? -1) + 1 || 1;
+    // Find this attempt's order (1-indexed)
+    if (allAttempts && allAttempts.length > 0) {
+      const index = allAttempts.findIndex(a => a.attempt_id === attempt.attempt_id);
+      answerOrder = index >= 0 ? index + 1 : allAttempts.length;
+    }
 
-  // Update the attempt with the correct answer_order
-  await supabase
-    .from('question_attempts')
-    .update({ answer_order: answerOrder })
-    .eq('attempt_id', attempt.attempt_id);
+    // Update the attempt with the correct answer_order
+    const { error: updateError } = await supabase
+      .from('question_attempts')
+      .update({ answer_order: answerOrder })
+      .eq('attempt_id', attempt.attempt_id);
 
-  console.log('Answer order assigned:', answerOrder);
+    if (updateError) {
+      console.error('Failed to update answer_order:', updateError);
+      // Don't throw - the answer was still recorded
+    }
+
+    console.log('Answer order assigned:', answerOrder);
+  } catch (orderError) {
+    console.error('Error calculating answer order:', orderError);
+    // Continue anyway - answer was recorded successfully
+  }
   
   // Calculate points based on correctness, difficulty, time, and answer order
   let pointsEarned = 0;
@@ -310,26 +324,42 @@ export async function submitAnswer(
 
   // Update player score
   if (pointsEarned > 0) {
-    // Get current score
-    const { data: currentPlayer } = await supabase
-      .from('room_players')
-      .select('score')
-      .eq('room_player_id', roomPlayerId)
-      .single();
-
-    if (currentPlayer) {
-      const { error: scoreError } = await supabase
+    try {
+      // Get current score
+      const { data: currentPlayer, error: fetchError } = await supabase
         .from('room_players')
-        .update({ score: currentPlayer.score + pointsEarned })
-        .eq('room_player_id', roomPlayerId);
+        .select('score')
+        .eq('room_player_id', roomPlayerId)
+        .single();
 
-      if (scoreError) {
-        console.error('Failed to update score:', scoreError);
+      if (fetchError) {
+        console.error('Failed to fetch player score:', fetchError);
+      } else if (currentPlayer) {
+        const { error: scoreError } = await supabase
+          .from('room_players')
+          .update({ score: (currentPlayer.score || 0) + pointsEarned })
+          .eq('room_player_id', roomPlayerId);
+
+        if (scoreError) {
+          console.error('Failed to update score:', scoreError);
+        } else {
+          console.log('Score updated successfully:', (currentPlayer.score || 0) + pointsEarned);
+        }
       }
+    } catch (scoreErr) {
+      console.error('Score update error:', scoreErr);
+      // Don't throw - answer was still recorded
     }
   }
 
-  return { attempt, pointsEarned };
+  // Return the updated attempt with answer_order
+  return { 
+    attempt: {
+      ...attempt,
+      answer_order: answerOrder
+    }, 
+    pointsEarned 
+  };
 }
 
 /**

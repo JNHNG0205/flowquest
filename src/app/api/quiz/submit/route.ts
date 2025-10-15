@@ -47,12 +47,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if player already answered this question
-    const { data: existingAttempt } = await supabase
+    const { data: existingAttempt, error: checkError } = await supabase
       .from('question_attempts')
       .select('attempt_id')
       .eq('room_question_id', sessionQuestionId)
       .eq('room_player_id', playerId)
-      .single();
+      .maybeSingle(); // Use maybeSingle instead of single to avoid errors when not found
 
     if (existingAttempt) {
       return NextResponse.json(
@@ -61,8 +61,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log('💾 Starting answer submission for player:', playerId);
+
     // Submit answer
     const { attempt, pointsEarned } = await submitAnswer(sessionQuestionId, playerId, answer, timeTaken);
+    
+    console.log('✅ Answer submitted successfully:', { attemptId: attempt.attempt_id, pointsEarned });
 
     // Get room_question info
     const { data: roomQuestion } = await supabase
