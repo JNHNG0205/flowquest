@@ -239,15 +239,46 @@ export async function submitAnswer(
 
   const isCorrect = answerGiven === roomQuestion.question.correct_answer;
   
-  // Get current answer count to determine answer order
-  const { data: existingAttempts, error: attemptsError } = await supabase
+  console.log('Points calculated:', { isCorrect });
+
+  // First, insert the attempt WITHOUT answer_order
+  // We'll calculate order based on created_at timestamp after insertion
+  const { data: attempt, error: attemptError } = await supabase
     .from('question_attempts')
-    .select('attempt_id')
-    .eq('room_question_id', roomQuestionId);
+    .insert({
+      room_question_id: roomQuestionId,
+      room_player_id: roomPlayerId,
+      is_correct: isCorrect,
+      answer_time: timeTaken,
+      // Don't set answer_order yet - will calculate after insertion
+    })
+    .select()
+    .single();
 
-  console.log('Existing attempts:', { count: existingAttempts?.length || 0, error: attemptsError });
+  console.log('Attempt insert:', { success: !!attempt, error: attemptError });
 
-  const answerOrder = (existingAttempts?.length || 0) + 1;
+  if (attemptError || !attempt) {
+    console.error('Failed to record attempt:', attemptError);
+    throw new Error(`Failed to record attempt: ${attemptError?.message}`);
+  }
+
+  // Now get all attempts ordered by creation time to determine answer order
+  const { data: allAttempts } = await supabase
+    .from('question_attempts')
+    .select('attempt_id, created_at')
+    .eq('room_question_id', roomQuestionId)
+    .order('created_at', { ascending: true });
+
+  // Find this attempt's order (1-indexed)
+  const answerOrder = (allAttempts?.findIndex(a => a.attempt_id === attempt.attempt_id) ?? -1) + 1 || 1;
+
+  // Update the attempt with the correct answer_order
+  await supabase
+    .from('question_attempts')
+    .update({ answer_order: answerOrder })
+    .eq('attempt_id', attempt.attempt_id);
+
+  console.log('Answer order assigned:', answerOrder);
   
   // Calculate points based on correctness, difficulty, time, and answer order
   let pointsEarned = 0;
@@ -275,27 +306,7 @@ export async function submitAnswer(
     pointsEarned = Math.round(basePoints * (1 + timeBonus + speedBonus));
   }
 
-  console.log('Points calculated:', { isCorrect, answerOrder, pointsEarned });
-
-  // Record attempt with answer_order
-  const { data: attempt, error: attemptError } = await supabase
-    .from('question_attempts')
-    .insert({
-      room_question_id: roomQuestionId,
-      room_player_id: roomPlayerId,
-      is_correct: isCorrect,
-      answer_time: timeTaken,
-      answer_order: answerOrder,
-    })
-    .select()
-    .single();
-
-  console.log('Attempt insert:', { success: !!attempt, error: attemptError });
-
-  if (attemptError || !attempt) {
-    console.error('Failed to record attempt:', attemptError);
-    throw new Error(`Failed to record attempt: ${attemptError?.message}`);
-  }
+  console.log('Final points calculated:', { pointsEarned });
 
   // Update player score
   if (pointsEarned > 0) {
