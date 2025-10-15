@@ -71,11 +71,25 @@ export async function POST(request: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { correct_answer, ...questionWithoutAnswer } = question;
 
+    // Ensure options is an array (parse if it's a JSON string)
+    let options = questionWithoutAnswer.options;
+    if (typeof options === 'string') {
+      try {
+        options = JSON.parse(options);
+      } catch (e) {
+        console.error('Failed to parse options:', e);
+        options = [];
+      }
+    }
+
     return NextResponse.json({
       success: true,
       data: {
         session_question: roomQuestion,
-        question: questionWithoutAnswer,
+        question: {
+          ...questionWithoutAnswer,
+          options: options || [],
+        },
         time_limit: timeLimit,
       },
     });

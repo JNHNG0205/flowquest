@@ -63,7 +63,22 @@ export default function GamePage() {
   // Update question from realtime
   useEffect(() => {
     if (realtimeQuestion) {
-      setCurrentQuestion(realtimeQuestion as CurrentQuestion);
+      // Ensure options is properly formatted as an array
+      const question = realtimeQuestion as any;
+      if (question.question) {
+        let options = question.question.options;
+        if (typeof options === 'string') {
+          try {
+            options = JSON.parse(options);
+          } catch (e) {
+            console.error('Failed to parse options:', e);
+            options = [];
+          }
+        }
+        question.question.options = options || [];
+      }
+      
+      setCurrentQuestion(question as CurrentQuestion);
       setShowResults(false);
       setDiceValue(null);
       setHasAnswered(false); // Reset for new question

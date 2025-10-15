@@ -16,6 +16,13 @@ export function QuizQuestion({ question, timeLimit, onSubmit, disabled }: QuizQu
   const [submitted, setSubmitted] = useState(false);
   const [startTime] = useState(Date.now());
 
+  // Ensure options is an array
+  const options = Array.isArray(question.options) 
+    ? question.options 
+    : typeof question.options === 'string' 
+    ? JSON.parse(question.options) 
+    : [];
+
   useEffect(() => {
     if (submitted || disabled) return;
 
@@ -89,7 +96,7 @@ export function QuizQuestion({ question, timeLimit, onSubmit, disabled }: QuizQu
 
       {/* Options */}
       <div className="space-y-3 mb-6">
-        {question.options.map((option, index) => (
+        {options.map((option: string, index: number) => (
           <button
             key={index}
             onClick={() => {
