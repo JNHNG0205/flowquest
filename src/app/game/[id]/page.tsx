@@ -449,20 +449,6 @@ export default function GamePage() {
                 <p className="text-gray-600">It&apos;s their turn to roll the dice</p>
               </div>
             )}
-
-            {/* Fallback: Show if nothing else matches */}
-            {!currentQuestion && 
-             !(hasAnswered && waitingForOthers) && 
-             !((!hasAnswered && !waitingForOthers && isMyTurn())) && 
-             !((!hasAnswered && !waitingForOthers && !isMyTurn())) && (
-              <div className="bg-yellow-50 rounded-lg shadow-lg p-8 text-center">
-                <div className="text-4xl mb-4">🤔</div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                  Loading game state...
-                </h2>
-                <p className="text-gray-600 text-sm">Check debug panel above</p>
-              </div>
-            )}
           </div>
 
           {/* Sidebar */}
