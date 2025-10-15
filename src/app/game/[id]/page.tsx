@@ -39,14 +39,12 @@ export default function GamePage() {
     correct_answer?: string;
     explanation?: string;
   } | null>(null);
-  const [showResults, setShowResults] = useState(false);
   const [renderKey, setRenderKey] = useState(0); // Force re-render key
   
   // Track previous turn/player to detect changes
   const prevTurnRef = useRef<number | null>(null);
   const prevPlayerIndexRef = useRef<number | null>(null);
   const lastQuestionIdRef = useRef<string | null>(null);
-  const resultsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const { session, players } = useGameRealtime(sessionId);
   const { currentQuestion: realtimeQuestion } = useQuizRealtime(sessionId);
@@ -109,7 +107,6 @@ export default function GamePage() {
       setDiceValue(null);
       setHasAnswered(false);
       setMyResult(null);
-      setShowResults(false);
     }
   }, [realtimeQuestion]);
 
@@ -125,23 +122,16 @@ export default function GamePage() {
     const playerChanged = prevPlayerIndexRef.current !== null && prevPlayerIndexRef.current !== currentPlayerIndex;
     
     if (turnChanged || playerChanged) {
-      // If we have a result from the previous question, show results first
-      if (hasAnswered) {
-        setShowResults(true);
-        setGamePhase('results');
-      } else {
-        // Reset to dice phase for new turn
-        setGamePhase('dice');
-        setCurrentQuestion(null);
-        setHasAnswered(false);
-        setMyResult(null);
-        setDiceValue(null);
-        setShowResults(false);
-        lastQuestionIdRef.current = null;
-        
-        // Force React to re-render by updating render key
-        setRenderKey(prev => prev + 1);
-      }
+      // Reset to dice phase for new turn
+      setGamePhase('dice');
+      setCurrentQuestion(null);
+      setHasAnswered(false);
+      setMyResult(null);
+      setDiceValue(null);
+      lastQuestionIdRef.current = null;
+      
+      // Force React to re-render by updating render key
+      setRenderKey(prev => prev + 1);
     }
     
     // Update refs
@@ -149,57 +139,24 @@ export default function GamePage() {
     prevPlayerIndexRef.current = currentPlayerIndex ?? null;
   }, [session?.current_turn, session?.current_player_index]);
 
-  // Handle results phase with synchronized timeout
+  // Show results phase when all players have answered
   useEffect(() => {
-    if (gamePhase === 'results' && showResults) {
-      // Clear any existing timeout
-      if (resultsTimeoutRef.current) {
-        clearTimeout(resultsTimeoutRef.current);
-      }
+    if (gamePhase === 'answering' && hasAnswered && myResult) {
+      // Show results after a delay (simulating waiting for all players)
+      const resultsTimeout = setTimeout(() => {
+        setGamePhase('results');
+        
+        // After 2 seconds, advance to next turn
+        const nextTurnTimeout = setTimeout(() => {
+          setGamePhase('dice');
+        }, 2000);
+        
+        return () => clearTimeout(nextTurnTimeout);
+      }, 3000); // Wait 3 seconds for all players to answer
       
-      // Show results for 2 seconds, then transition to next question
-      resultsTimeoutRef.current = setTimeout(() => {
-        setShowResults(false);
-        setGamePhase('question');
-        setHasAnswered(false);
-        setMyResult(null);
-        resultsTimeoutRef.current = null;
-      }, 2000); // Show results for 2 seconds
-      
-      return () => {
-        if (resultsTimeoutRef.current) {
-          clearTimeout(resultsTimeoutRef.current);
-          resultsTimeoutRef.current = null;
-        }
-      };
+      return () => clearTimeout(resultsTimeout);
     }
-  }, [gamePhase, showResults]);
-
-  // Handle new question arrival - clear results if we're showing them
-  useEffect(() => {
-    if (realtimeQuestion && gamePhase === 'results') {
-      // Clear any pending results timeout
-      if (resultsTimeoutRef.current) {
-        clearTimeout(resultsTimeoutRef.current);
-        resultsTimeoutRef.current = null;
-      }
-      
-      // New question arrived while showing results, clear results and reset state
-      setShowResults(false);
-      setGamePhase('question');
-      setHasAnswered(false);
-      setMyResult(null);
-    }
-  }, [realtimeQuestion, gamePhase]);
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (resultsTimeoutRef.current) {
-        clearTimeout(resultsTimeoutRef.current);
-      }
-    };
-  }, []);
+  }, [gamePhase, hasAnswered, myResult]);
 
   const isMyTurn = () => {
     if (!session || !currentPlayer || !players.length) return false;
@@ -406,7 +363,6 @@ export default function GamePage() {
               <div className="bg-gray-800 text-white p-4 rounded text-xs space-y-1">
                 <div className="font-bold text-green-400">Render Key: {renderKey}</div>
                 <div>Game Phase: {gamePhase}</div>
-                <div>Show Results: {showResults ? 'Yes' : 'No'}</div>
                 <div>Has Question: {currentQuestion ? 'Yes' : 'No'}</div>
                 <div>Has Answered: {hasAnswered ? 'Yes' : 'No'}</div>
                 <div>Is My Turn: {isMyTurn() ? 'Yes' : 'No'}</div>
@@ -480,38 +436,24 @@ export default function GamePage() {
               </div>
             )}
 
-            {/* Phase 4: Results Phase - Show results to ALL players */}
-            {gamePhase === 'results' && showResults && (
+            {/* Phase 4: Results Phase - Show results to ALL players for 2 seconds */}
+            {gamePhase === 'results' && myResult && (
               <div className="bg-white rounded-lg shadow-lg p-8 max-w-2xl mx-auto">
                 <div className="text-center">
-                  {myResult ? (
-                    <>
-                      <div className={`text-6xl mb-4 ${myResult.is_correct || myResult.correct ? 'text-green-500' : 'text-red-500'}`}>
-                        {myResult.is_correct || myResult.correct ? '✅' : '❌'}
-                      </div>
-                      <h2 className={`text-2xl font-bold mb-2 ${myResult.is_correct || myResult.correct ? 'text-green-900' : 'text-red-900'}`}>
-                        {myResult.is_correct || myResult.correct ? 'Correct!' : 'Incorrect'}
-                      </h2>
-                      <p className="text-gray-700 mb-4">
-                        {myResult.is_correct || myResult.correct 
-                          ? `You earned ${myResult.points_earned || myResult.pointsEarned || 0} points!`
-                          : `The correct answer was: ${myResult.correct_answer || myResult.correctAnswer}`
-                        }
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <div className="text-6xl mb-4 text-gray-500">📊</div>
-                      <h2 className="text-2xl font-bold mb-2 text-gray-900">
-                        Round Complete!
-                      </h2>
-                      <p className="text-gray-700 mb-4">
-                        All players have answered. Moving to next turn...
-                      </p>
-                    </>
-                  )}
+                  <div className={`text-6xl mb-4 ${myResult.is_correct || myResult.correct ? 'text-green-500' : 'text-red-500'}`}>
+                    {myResult.is_correct || myResult.correct ? '✅' : '❌'}
+                  </div>
+                  <h2 className={`text-2xl font-bold mb-2 ${myResult.is_correct || myResult.correct ? 'text-green-900' : 'text-red-900'}`}>
+                    {myResult.is_correct || myResult.correct ? 'Correct!' : 'Incorrect'}
+                  </h2>
+                  <p className="text-gray-700 mb-4">
+                    {myResult.is_correct || myResult.correct 
+                      ? `You earned ${myResult.points_earned || myResult.pointsEarned || 0} points!`
+                      : `The correct answer was: ${myResult.correct_answer || myResult.correctAnswer}`
+                    }
+                  </p>
                   <div className="animate-pulse text-sm text-gray-500">
-                    Showing results...
+                    Showing results for 2 seconds...
                   </div>
                 </div>
               </div>
