@@ -54,13 +54,13 @@ export function useGameRealtime(roomId: string | null) {
           console.log('🎮 Room update received:', payload);
           if (payload.eventType === 'UPDATE') {
             const newSession = payload.new as Room;
-            console.log('🔄 Updating session state:', { 
-              old_turn: session?.current_turn, 
+            console.log('🔄 Setting NEW session state:', { 
               new_turn: newSession.current_turn,
-              old_player: session?.current_player_index,
-              new_player: newSession.current_player_index
+              new_player: newSession.current_player_index,
+              room_id: newSession.room_id
             });
-            setSession(newSession);
+            // Force a new object reference to trigger React re-render
+            setSession({ ...newSession });
           }
         }
       )

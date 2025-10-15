@@ -140,24 +140,18 @@ export default function GamePage() {
     });
     
     if (turnChanged || playerChanged) {
-      console.log('✅ Turn/Player changed! Clearing question state...');
+      console.log('✅✅✅ TURN/PLAYER CHANGED - CLEARING ALL STATE NOW ✅✅✅');
       
-      // Clear everything immediately - use setTimeout to ensure it runs after any other state updates
-      setTimeout(() => {
-        console.log('🧹 FORCE CLEARING ALL STATE NOW');
-        setCurrentQuestion(null);
-        setShowResults(false);
-        setLastResult(null);
-        setHasAnswered(false);
-        setWaitingForOthers(false);
-        setDiceValue(null);
-        lastQuestionIdRef.current = null;
-        
-        // Log state after clear
-        setTimeout(() => {
-          console.log('🔍 State after clear - showResults should be false');
-        }, 100);
-      }, 0);
+      // Clear everything - fresh start for the new turn
+      setCurrentQuestion(null);
+      setShowResults(false);
+      setLastResult(null);
+      setHasAnswered(false);
+      setWaitingForOthers(false);
+      setDiceValue(null);
+      lastQuestionIdRef.current = null;
+      
+      console.log('State cleared - showResults set to FALSE, currentQuestion set to NULL');
     }
     
     // Update refs
@@ -355,7 +349,7 @@ export default function GamePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 p-4" key={`turn-${session.current_turn}-player-${session.current_player_index}`}>
+    <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 p-4">
       <div className="max-w-6xl mx-auto py-8">
         {/* Header */}
         <div className="text-center mb-8">
