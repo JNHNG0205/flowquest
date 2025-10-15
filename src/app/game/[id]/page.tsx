@@ -46,6 +46,7 @@ export default function GamePage() {
   const prevTurnRef = useRef<number | null>(null);
   const prevPlayerIndexRef = useRef<number | null>(null);
   const lastQuestionIdRef = useRef<string | null>(null);
+  const quizResultTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const { session, players } = useGameRealtime(sessionId);
   const { currentQuestion: realtimeQuestion } = useQuizRealtime(sessionId);
@@ -129,6 +130,12 @@ export default function GamePage() {
     
     if (turnChanged || playerChanged) {
       
+      // Clear any pending quiz result timeout
+      if (quizResultTimeoutRef.current) {
+        clearTimeout(quizResultTimeoutRef.current);
+        quizResultTimeoutRef.current = null;
+      }
+      
       // Clear everything - fresh start for the new turn
       setCurrentQuestion(null);
       setShowResults(false);
@@ -148,6 +155,35 @@ export default function GamePage() {
     prevTurnRef.current = currentTurn ?? null;
     prevPlayerIndexRef.current = currentPlayerIndex ?? null;
   }, [session?.current_turn, session?.current_player_index]);
+
+  // Additional effect to clear quiz result when it's a new player's turn
+  useEffect(() => {
+    if (!session || !currentPlayer) return;
+    
+    const isMyTurnNow = isMyTurn();
+    
+    // If it's my turn now and I have a quiz result showing, clear it
+    if (isMyTurnNow && showQuizResult) {
+      // Clear any pending timeout
+      if (quizResultTimeoutRef.current) {
+        clearTimeout(quizResultTimeoutRef.current);
+        quizResultTimeoutRef.current = null;
+      }
+      
+      setShowQuizResult(false);
+      setShowResults(false);
+      setLastResult(null);
+    }
+  }, [session?.current_player_index, currentPlayer, showQuizResult]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (quizResultTimeoutRef.current) {
+        clearTimeout(quizResultTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const isMyTurn = () => {
     if (!session || !currentPlayer || !players.length) return false;
@@ -268,7 +304,7 @@ export default function GamePage() {
       setHasAnswered(true);
 
       // Show quiz result for 2 seconds, then transition to waiting screen
-      setTimeout(() => {
+      quizResultTimeoutRef.current = setTimeout(() => {
         setShowQuizResult(false);
         
         // Always show results after quiz result, but only show waiting if not all answered
@@ -278,6 +314,7 @@ export default function GamePage() {
         } else {
           setWaitingForOthers(false);
         }
+        quizResultTimeoutRef.current = null;
       }, 2000);
 
       // Turn will advance automatically when all players answer (handled by API)
