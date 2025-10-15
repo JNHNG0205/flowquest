@@ -79,6 +79,8 @@ export async function POST(request: NextRequest) {
     let newAnsweredCount = 1;
     let allAnswered = false;
 
+    console.log('📊 Before increment - Total players:', totalPlayers, 'Players answered:', roomQuestion.players_answered);
+
     // Try atomic increment function first (preferred method)
     const { data: newCount, error: rpcError } = await supabase
       .rpc('increment_players_answered', {
@@ -137,24 +139,37 @@ export async function POST(request: NextRequest) {
       allAnswered = newAnsweredCount >= totalPlayers;
     }
 
+    console.log('📊 After increment - Players answered:', newAnsweredCount, 'Total:', totalPlayers, 'All answered:', allAnswered);
+
     // Update all_answered flag if all players have answered
     if (allAnswered) {
-      await supabase
+      const { error: flagError } = await supabase
         .from('room_questions')
         .update({ all_answered: true })
         .eq('room_question_id', sessionQuestionId);
+      
+      console.log('Updated all_answered flag:', flagError ? 'FAILED' : 'SUCCESS', flagError);
     }
 
     // If all players answered, automatically advance the turn
     if (allAnswered) {
       const roomId = roomQuestion.room_id;
       
+      console.log('🎯 All players answered! Advancing turn for room:', roomId);
+      
       // Call next-turn API
-      await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/game/next-turn`, {
+      const nextTurnResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/game/next-turn`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId: roomId }),
       });
+      
+      const nextTurnResult = await nextTurnResponse.json();
+      console.log('Next turn result:', nextTurnResult);
+      
+      if (!nextTurnResponse.ok) {
+        console.error('Failed to advance turn:', nextTurnResult);
+      }
     }
 
     return NextResponse.json({

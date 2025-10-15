@@ -104,6 +104,25 @@ export default function GamePage() {
     }
   }, [realtimeQuestion]);
 
+  // Reset UI when turn changes (all players have answered and turn advanced)
+  useEffect(() => {
+    if (!session) return;
+    
+    console.log('🔄 Session updated - Current turn:', session.current_turn, 'Player index:', session.current_player_index);
+    
+    // When turn changes, clear everything so next player can roll dice
+    // This happens after all players answered the question
+    if (waitingForOthers) {
+      console.log('✅ Turn advanced! Clearing question state...');
+      setCurrentQuestion(null);
+      setShowResults(false);
+      setLastResult(null);
+      setHasAnswered(false);
+      setWaitingForOthers(false);
+      setDiceValue(null);
+    }
+  }, [session?.current_turn, session?.current_player_index]);
+
   const isMyTurn = () => {
     if (!session || !currentPlayer || !players.length) return false;
     const activePlayer = players[session.current_player_index || 0];
