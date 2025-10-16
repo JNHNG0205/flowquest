@@ -32,6 +32,7 @@ export default function GamePage() {
     powerup: PowerUp | null;
     message: string;
   } | null>(null);
+  const [powerupRefreshTrigger, setPowerupRefreshTrigger] = useState(0);
   // Game flow states
   const [gamePhase, setGamePhase] = useState<'dice' | 'question' | 'answering' | 'results' | 'waiting'>('dice');
   const [currentQuestion, setCurrentQuestion] = useState<CurrentQuestion | null>(null);
@@ -297,6 +298,9 @@ export default function GamePage() {
           const powerupResult = await powerupResponse.json();
 
           if (powerupResult.success) {
+            // Trigger powerup display refresh
+            setPowerupRefreshTrigger(prev => prev + 1);
+            
             // Show powerup modal
             setPowerupModalData({
               powerup: powerupResult.data.powerup,
@@ -641,6 +645,7 @@ export default function GamePage() {
               playerId={currentPlayer.room_player_id}
               onUsePowerup={handleUsePowerup}
               disabled={!isMyTurn() || gamePhase !== 'dice'}
+              refreshTrigger={powerupRefreshTrigger}
             />
             
             {session.status === 'in_progress' && (

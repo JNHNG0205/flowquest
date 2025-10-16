@@ -7,6 +7,7 @@ interface PowerupDisplayProps {
   playerId: string;
   onUsePowerup?: (powerupId: string, powerupType: PowerUpType) => void;
   disabled?: boolean;
+  refreshTrigger?: number; // Add refresh trigger prop
 }
 
 const powerupIcons: Record<PowerUpType, string> = {
@@ -25,17 +26,20 @@ const powerupColors: Record<PowerUpType, string> = {
   shield: 'bg-red-100 border-red-300 text-red-800',
 };
 
-export function PowerupDisplay({ playerId, onUsePowerup, disabled = false }: PowerupDisplayProps) {
+export function PowerupDisplay({ playerId, onUsePowerup, disabled = false, refreshTrigger }: PowerupDisplayProps) {
   const [powerups, setPowerups] = useState<(PlayerPowerUp & { powerup: PowerUp })[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchPowerups = async () => {
     try {
+      setLoading(true);
       const response = await fetch(`/api/powerups/player?playerId=${playerId}`);
       const data = await response.json();
       
       if (data.success) {
         setPowerups(data.data.powerups);
+      } else {
+        console.error('Failed to fetch powerups:', data.error);
       }
     } catch (error) {
       console.error('Failed to fetch powerups:', error);
@@ -46,7 +50,7 @@ export function PowerupDisplay({ playerId, onUsePowerup, disabled = false }: Pow
 
   useEffect(() => {
     fetchPowerups();
-  }, [playerId]);
+  }, [playerId, refreshTrigger]); // Add refreshTrigger to dependencies
 
   const handleUsePowerup = async (powerupId: string, powerupType: PowerUpType) => {
     if (disabled) return;
