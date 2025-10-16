@@ -8,7 +8,8 @@ import { Scoreboard } from '@/components/Scoreboard';
 import { DiceRoller } from '@/components/DiceRoller';
 import { QuizQuestion } from '@/components/QuizQuestion';
 import { QRScanner } from '@/components/QRScanner';
-import type { SessionPlayer, Question} from '@/types/database.types';
+import { PowerupDisplay } from '@/components/PowerupDisplay';
+import type { SessionPlayer, Question, PowerUpType} from '@/types/database.types';
 
 interface CurrentQuestion extends Question {
   room_question_id?: string;
@@ -270,7 +271,39 @@ export default function GamePage() {
         }
       }
 
-      // Fetch question
+      // Randomly decide if this tile gives a powerup or a question (70% question, 30% powerup)
+      const isPowerupTile = Math.random() < 0.3;
+
+      if (isPowerupTile) {
+        // Try to get a powerup
+        try {
+          const powerupResponse = await fetch('/api/powerups/scan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              playerId: currentPlayer.room_player_id,
+              tileData: data,
+            }),
+          });
+
+          const powerupResult = await powerupResponse.json();
+
+          if (powerupResult.success) {
+            // Show powerup obtained message
+            alert(`🎉 ${powerupResult.data.message}`);
+            // Refresh powerups display (will be handled by PowerupDisplay component)
+            return;
+          } else {
+            // If powerup failed (e.g., player has max powerups), fall back to question
+            console.log('Powerup scan failed, falling back to question:', powerupResult.error);
+          }
+        } catch (powerupError) {
+          // If powerup API fails, fall back to question
+          console.log('Powerup scan error, falling back to question:', powerupError);
+        }
+      }
+
+      // Fetch question (either as primary choice or fallback)
       const response = await fetch('/api/quiz/question', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -384,6 +417,30 @@ export default function GamePage() {
       setMyResult(null);
     } catch (error) {
       console.error('Advance turn error:', error);
+    }
+  };
+
+  const handleUsePowerup = (powerupId: string, powerupType: PowerUpType) => {
+    // Handle different powerup effects
+    switch (powerupType) {
+      case 'extra_time':
+        // This would be handled in the QuizQuestion component
+        alert('⏰ Extra Time powerup activated! You\'ll get +10 seconds on your next question.');
+        break;
+      case 'skip_question':
+        alert('⏭️ Skip Question powerup activated! You can skip your next question.');
+        break;
+      case 'double_points':
+        alert('💎 Double Points powerup activated! Your next correct answer will give double points.');
+        break;
+      case 'hint':
+        alert('💡 Hint powerup activated! You\'ll get a hint on your next question.');
+        break;
+      case 'shield':
+        alert('🛡️ Shield powerup activated! Your next wrong answer won\'t count against you.');
+        break;
+      default:
+        alert('Powerup used!');
     }
   };
 
@@ -543,6 +600,12 @@ export default function GamePage() {
           {/* Sidebar */}
           <div className="space-y-6">
             <Scoreboard players={players} currentPlayerId={currentPlayer.room_player_id} />
+            
+            <PowerupDisplay 
+              playerId={currentPlayer.room_player_id}
+              onUsePowerup={handleUsePowerup}
+              disabled={!isMyTurn() || gamePhase !== 'dice'}
+            />
             
             {session.status === 'in_progress' && (
               <button

@@ -57,10 +57,14 @@ export interface QuestionAttempt {
   room_player?: RoomPlayer;
 }
 
+export type PowerUpType = 'extra_time' | 'skip_question' | 'double_points' | 'hint' | 'shield';
+
 export interface PowerUp {
   powerup_id: string;
   name: string;
   description: string | null;
+  type: PowerUpType;
+  effect_value?: number; // For powerups that have numerical effects
 }
 
 export interface PlayerPowerUp {
@@ -68,6 +72,8 @@ export interface PlayerPowerUp {
   room_player_id: string;
   powerup_id: string;
   is_used: boolean;
+  obtained_at: string;
+  used_at?: string;
   // Relations
   powerup?: PowerUp;
 }
@@ -135,4 +141,22 @@ export interface RealtimeAnswerUpdate {
   is_correct: boolean;
   time_taken: number;
   points_earned: number;
+}
+
+// Powerup API Response Types
+export interface ScanPowerUpResponse {
+  powerup: PowerUp;
+  player_powerup: PlayerPowerUp;
+  message: string;
+}
+
+export interface UsePowerUpResponse {
+  success: boolean;
+  message: string;
+  effect_applied?: any;
+}
+
+export interface PlayerPowerUpsResponse {
+  powerups: (PlayerPowerUp & { powerup: PowerUp })[];
+  total_count: number;
 }

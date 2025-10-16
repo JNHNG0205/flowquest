@@ -7,6 +7,9 @@ import type {
   RoomQuestion,
   QuestionAttempt,
   DifficultyLevel,
+  PowerUp,
+  PlayerPowerUp,
+  PowerUpType,
 } from '@/types/database.types';
 
 /**
@@ -403,4 +406,137 @@ export function getTimeLimit(difficulty: string | null | undefined): number {
     medium: 35,
     hard: 50,
   }[difficulty.toLowerCase()] || 30;
+}
+
+/**
+ * Get a random powerup
+ */
+export async function getRandomPowerUp(): Promise<PowerUp> {
+  const supabase = await createClient(cookies());
+
+  const { data: powerups, error } = await supabase
+    .from('powerups')
+    .select('*');
+
+  if (error || !powerups || powerups.length === 0) {
+    throw new Error('No powerups available');
+  }
+
+  // Return random powerup
+  const randomIndex = Math.floor(Math.random() * powerups.length);
+  return powerups[randomIndex];
+}
+
+/**
+ * Give a powerup to a player
+ */
+export async function givePowerUpToPlayer(
+  roomPlayerId: string,
+  powerupId: string
+): Promise<PlayerPowerUp> {
+  const supabase = await createClient(cookies());
+
+  // Check if player already has 3 powerups
+  const { data: existingPowerups, error: countError } = await supabase
+    .from('player_powerups')
+    .select('player_powerup_id')
+    .eq('room_player_id', roomPlayerId)
+    .eq('is_used', false);
+
+  if (countError) {
+    throw new Error(`Failed to check existing powerups: ${countError.message}`);
+  }
+
+  if (existingPowerups && existingPowerups.length >= 3) {
+    throw new Error('Player already has maximum number of powerups (3)');
+  }
+
+  // Give the powerup to the player
+  const { data: playerPowerup, error } = await supabase
+    .from('player_powerups')
+    .insert({
+      room_player_id: roomPlayerId,
+      powerup_id: powerupId,
+      is_used: false,
+      obtained_at: new Date().toISOString(),
+    })
+    .select()
+    .single();
+
+  if (error || !playerPowerup) {
+    throw new Error(`Failed to give powerup: ${error?.message}`);
+  }
+
+  return playerPowerup;
+}
+
+/**
+ * Get player's powerups
+ */
+export async function getPlayerPowerUps(roomPlayerId: string): Promise<(PlayerPowerUp & { powerup: PowerUp })[]> {
+  const supabase = await createClient(cookies());
+
+  const { data: playerPowerups, error } = await supabase
+    .from('player_powerups')
+    .select(`
+      *,
+      powerup:powerups(*)
+    `)
+    .eq('room_player_id', roomPlayerId)
+    .eq('is_used', false)
+    .order('obtained_at', { ascending: true });
+
+  if (error) {
+    throw new Error(`Failed to get player powerups: ${error.message}`);
+  }
+
+  return playerPowerups || [];
+}
+
+/**
+ * Use a powerup
+ */
+export async function usePowerUp(
+  playerPowerupId: string,
+  roomPlayerId: string
+): Promise<{ success: boolean; effect?: any }> {
+  const supabase = await createClient(cookies());
+
+  // Get the powerup details
+  const { data: playerPowerup, error: fetchError } = await supabase
+    .from('player_powerups')
+    .select(`
+      *,
+      powerup:powerups(*)
+    `)
+    .eq('player_powerup_id', playerPowerupId)
+    .eq('room_player_id', roomPlayerId)
+    .eq('is_used', false)
+    .single();
+
+  if (fetchError || !playerPowerup) {
+    throw new Error('Powerup not found or already used');
+  }
+
+  // Mark powerup as used
+  const { error: updateError } = await supabase
+    .from('player_powerups')
+    .update({
+      is_used: true,
+      used_at: new Date().toISOString(),
+    })
+    .eq('player_powerup_id', playerPowerupId);
+
+  if (updateError) {
+    throw new Error(`Failed to use powerup: ${updateError.message}`);
+  }
+
+  // Return success with powerup type for effect handling
+  return {
+    success: true,
+    effect: {
+      type: playerPowerup.powerup?.type,
+      value: playerPowerup.powerup?.effect_value,
+    },
+  };
 }
