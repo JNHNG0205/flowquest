@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { sessionQuestionId, playerId, answer, timeTaken } = body;
+    const { sessionQuestionId, playerId, answer, timeTaken, powerupEffects } = body;
 
     if (!sessionQuestionId || !playerId || !answer || timeTaken === undefined) {
       return NextResponse.json(
@@ -62,8 +62,14 @@ export async function POST(request: NextRequest) {
     }
 
 
-    // Submit answer
-    const { attempt, pointsEarned } = await submitAnswer(sessionQuestionId, playerId, answer, timeTaken);
+    // Submit answer with powerup effects
+    const { attempt, pointsEarned } = await submitAnswer(
+      sessionQuestionId, 
+      playerId, 
+      answer, 
+      timeTaken,
+      powerupEffects
+    );
     
 
     // Get room_question info

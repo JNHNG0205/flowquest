@@ -29,7 +29,7 @@ CREATE INDEX IF NOT EXISTS idx_powerups_type ON powerups(type);
 -- Insert default powerups
 INSERT INTO powerups (name, description, type, effect_value) VALUES
 ('Extra Time', 'Gives you 10 extra seconds on your next question', 'extra_time', 10),
-('Skip Question', 'Allows you to skip your next question without penalty', 'skip_question', NULL),
+('Skip Question', 'Skip your next question and automatically get full points for the correct answer', 'skip_question', NULL),
 ('Double Points', 'Your next correct answer will give you double points', 'double_points', 2),
 ('Hint', 'Reveals a hint for your next question', 'hint', NULL),
 ('Shield', 'Your next wrong answer won\'t count against you', 'shield', NULL)

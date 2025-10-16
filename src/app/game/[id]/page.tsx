@@ -33,6 +33,14 @@ export default function GamePage() {
     message: string;
   } | null>(null);
   const [powerupRefreshTrigger, setPowerupRefreshTrigger] = useState(0);
+  // Powerup effect states
+  const [activePowerups, setActivePowerups] = useState<{
+    extraTime?: boolean;
+    skipQuestion?: boolean;
+    doublePoints?: boolean;
+    hint?: boolean;
+    shield?: boolean;
+  }>({});
   // Game flow states
   const [gamePhase, setGamePhase] = useState<'dice' | 'question' | 'answering' | 'results' | 'waiting'>('dice');
   const [currentQuestion, setCurrentQuestion] = useState<CurrentQuestion | null>(null);
@@ -384,6 +392,10 @@ export default function GamePage() {
           playerId: currentPlayer.room_player_id,
           answer,
           timeTaken,
+          powerupEffects: {
+            doublePoints: activePowerups.doublePoints || false,
+            shield: activePowerups.shield || false,
+          },
         }),
       });
 
@@ -455,33 +467,80 @@ export default function GamePage() {
     }
   };
 
-  const handleUsePowerup = (powerupId: string, powerupType: PowerUpType) => {
-    // Handle different powerup effects
-    switch (powerupType) {
-      case 'extra_time':
-        // This would be handled in the QuizQuestion component
-        alert('⏰ Extra Time powerup activated! You\'ll get +10 seconds on your next question.');
-        break;
-      case 'skip_question':
-        alert('⏭️ Skip Question powerup activated! You can skip your next question.');
-        break;
-      case 'double_points':
-        alert('💎 Double Points powerup activated! Your next correct answer will give double points.');
-        break;
-      case 'hint':
-        alert('💡 Hint powerup activated! You\'ll get a hint on your next question.');
-        break;
-      case 'shield':
-        alert('🛡️ Shield powerup activated! Your next wrong answer won\'t count against you.');
-        break;
-      default:
-        alert('Powerup used!');
+  const handleUsePowerup = async (powerupId: string, powerupType: PowerUpType) => {
+    // Activate powerup effect
+    setActivePowerups(prev => ({
+      ...prev,
+      [powerupType === 'extra_time' ? 'extraTime' :
+       powerupType === 'skip_question' ? 'skipQuestion' :
+       powerupType === 'double_points' ? 'doublePoints' :
+       powerupType === 'hint' ? 'hint' :
+       powerupType === 'shield' ? 'shield' : 'extraTime']: true
+    }));
+
+    // Handle special powerup effects
+    if (powerupType === 'skip_question' && gamePhase === 'question') {
+      // Skip question = auto correct with points
+      try {
+        const response = await fetch('/api/quiz/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionQuestionId: currentQuestion?.room_question_id || currentQuestion?.question_id,
+            playerId: currentPlayer?.room_player_id,
+            answer: 'SKIPPED_WITH_POWERUP',
+            timeTaken: 1, // Minimal time for skip
+            powerupEffects: {
+              doublePoints: activePowerups.doublePoints || false,
+              shield: false, // Skip question doesn't need shield
+            },
+          }),
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          // Store the result and transition to answering phase
+          setMyResult(result.data);
+          setHasAnswered(true);
+          setGamePhase('answering');
+          
+          // Clear the skip question effect since it's been used
+          clearPowerupEffect('skip_question');
+          alert('⏭️ Question skipped with powerup! You got points for the correct answer.');
+          return;
+        }
+      } catch (error) {
+        console.error('Skip question error:', error);
+      }
     }
+
+    // Show confirmation message
+    const messages = {
+      extra_time: '⏰ Extra Time activated! +10 seconds on your next question.',
+      skip_question: '⏭️ Skip Question activated! You can skip your next question and get full points.',
+      double_points: '💎 Double Points activated! Next correct answer gives double points.',
+      hint: '💡 Hint activated! You\'ll get a hint on your next question.',
+      shield: '🛡️ Shield activated! Next wrong answer won\'t count against you.'
+    };
+    
+    alert(messages[powerupType] || 'Powerup activated!');
   };
 
   const handleClosePowerupModal = () => {
     setShowPowerupModal(false);
     setPowerupModalData(null);
+  };
+
+  // Clear powerup effects after they're used
+  const clearPowerupEffect = (powerupType: PowerUpType) => {
+    setActivePowerups(prev => ({
+      ...prev,
+      [powerupType === 'extra_time' ? 'extraTime' :
+       powerupType === 'skip_question' ? 'skipQuestion' :
+       powerupType === 'double_points' ? 'doublePoints' :
+       powerupType === 'hint' ? 'hint' :
+       powerupType === 'shield' ? 'shield' : 'extraTime']: false
+    }));
   };
 
   const leaveRoom = async () => {
@@ -583,9 +642,11 @@ export default function GamePage() {
               <div className="flex justify-center">
                 <QuizQuestion
                   question={currentQuestion}
-                  timeLimit={currentQuestion.time_limit}
+                  timeLimit={currentQuestion.time_limit + (activePowerups.extraTime ? 10 : 0)}
                   onSubmit={handleSubmitAnswer}
                   disabled={false} // All players can answer
+                  activePowerups={activePowerups}
+                  onClearPowerup={clearPowerupEffect}
                 />
               </div>
             )}

@@ -221,7 +221,11 @@ export async function submitAnswer(
   roomQuestionId: string,
   roomPlayerId: string,
   answerGiven: string,
-  timeTaken: number
+  timeTaken: number,
+  powerupEffects?: {
+    doublePoints?: boolean;
+    shield?: boolean;
+  }
 ): Promise<{ attempt: QuestionAttempt; pointsEarned: number }> {
   const supabase = await createClient(cookies());
 
@@ -238,7 +242,10 @@ export async function submitAnswer(
     throw new Error('Question not found');
   }
 
-  const isCorrect = answerGiven === roomQuestion.question.correct_answer;
+  // Apply powerup effects
+  const isSkipQuestion = answerGiven === 'SKIPPED_WITH_POWERUP';
+  const isCorrect = isSkipQuestion || answerGiven === roomQuestion.question.correct_answer;
+  const isShielded = powerupEffects?.shield && !isCorrect && !isSkipQuestion;
   
 
   // First, insert the attempt WITHOUT answer_order
@@ -303,19 +310,29 @@ export async function submitAnswer(
     };
     const basePoints = basePointsMap[difficulty] || 10;
 
-    const timeLimit = roomQuestion.time_limit || getTimeLimit(difficulty);
+    if (isSkipQuestion) {
+      // Skip question powerup gives full base points (no time/speed bonuses)
+      pointsEarned = basePoints;
+    } else {
+      const timeLimit = roomQuestion.time_limit || getTimeLimit(difficulty);
 
-    // Time bonus: faster answers get more points (up to 30% bonus)
-    const timeBonus = Math.max(0, (timeLimit - timeTaken) / timeLimit) * 0.3;
+      // Time bonus: faster answers get more points (up to 30% bonus)
+      const timeBonus = Math.max(0, (timeLimit - timeTaken) / timeLimit) * 0.3;
+      
+      // Speed bonus: first to answer gets extra points (up to 20% bonus)
+      // 1st place: +20%, 2nd place: +10%, 3rd place: +5%
+      let speedBonus = 0;
+      if (answerOrder === 1) speedBonus = 0.20;
+      else if (answerOrder === 2) speedBonus = 0.10;
+      else if (answerOrder === 3) speedBonus = 0.05;
+      
+      pointsEarned = Math.round(basePoints * (1 + timeBonus + speedBonus));
+    }
     
-    // Speed bonus: first to answer gets extra points (up to 20% bonus)
-    // 1st place: +20%, 2nd place: +10%, 3rd place: +5%
-    let speedBonus = 0;
-    if (answerOrder === 1) speedBonus = 0.20;
-    else if (answerOrder === 2) speedBonus = 0.10;
-    else if (answerOrder === 3) speedBonus = 0.05;
-    
-    pointsEarned = Math.round(basePoints * (1 + timeBonus + speedBonus));
+    // Apply double points powerup effect
+    if (powerupEffects?.doublePoints) {
+      pointsEarned = pointsEarned * 2;
+    }
   }
 
 
