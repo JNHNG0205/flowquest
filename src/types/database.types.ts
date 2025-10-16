@@ -35,6 +35,7 @@ export interface Question {
   options: string[]; // JSONB array
   correct_answer: string;
   difficulty: string | null;
+  explanation?: string | null;
 }
 
 export interface RoomQuestion {
