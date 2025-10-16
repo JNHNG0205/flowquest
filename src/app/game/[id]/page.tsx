@@ -485,7 +485,7 @@ export default function GamePage() {
     }));
 
     // Handle special powerup effects
-    if (powerupType === 'skip_question' && gamePhase === 'question') {
+    if (powerupType === 'skip_question' && gamePhase === 'question' && !hasAnswered) {
       // Skip question = auto correct with points
       try {
         const response = await fetch('/api/quiz/submit', {
@@ -522,11 +522,11 @@ export default function GamePage() {
 
     // Show activation modal
     const messages = {
-      extra_time: '⏰ Extra Time activated! +10 seconds on your next question.',
-      skip_question: '⏭️ Skip Question activated! You can skip your next question and get full points.',
-      double_points: '💎 Double Points activated! Next correct answer gives double points.',
-      hint: '💡 Hint activated! You\'ll get a hint on your next question.',
-      shield: '🛡️ Shield activated! Next wrong answer won\'t count against you.'
+      extra_time: '⏰ Extra Time activated! +10 seconds on the current question.',
+      skip_question: '⏭️ Skip Question activated! You can skip the current question and get full points.',
+      double_points: '💎 Double Points activated! Your answer to this question will give double points.',
+      hint: '💡 Hint activated! You\'ll get a hint for the current question.',
+      shield: '🛡️ Shield activated! Your answer to this question won\'t count against you if wrong.'
     };
     
     setPowerupActivationData({
@@ -654,15 +654,30 @@ export default function GamePage() {
 
             {/* Phase 2: Question Phase - Show question to ALL players */}
             {gamePhase === 'question' && currentQuestion && !hasAnswered && (
-              <div className="flex justify-center">
-                <QuizQuestion
-                  question={currentQuestion}
-                  timeLimit={currentQuestion.time_limit + (activePowerups.extraTime ? 10 : 0)}
-                  onSubmit={handleSubmitAnswer}
-                  disabled={false} // All players can answer
-                  activePowerups={activePowerups}
-                  onClearPowerup={clearPowerupEffect}
-                />
+              <div className="space-y-6">
+                {/* Powerup Display for All Players */}
+                <div className="flex justify-center">
+                  <div className="bg-white rounded-lg shadow-lg p-4 max-w-md w-full">
+                    <PowerupDisplay 
+                      playerId={currentPlayer.room_player_id}
+                      onUsePowerup={handleUsePowerup}
+                      disabled={false}
+                      refreshTrigger={powerupRefreshTrigger}
+                    />
+                  </div>
+                </div>
+                
+                {/* Question */}
+                <div className="flex justify-center">
+                  <QuizQuestion
+                    question={currentQuestion}
+                    timeLimit={currentQuestion.time_limit + (activePowerups.extraTime ? 10 : 0)}
+                    onSubmit={handleSubmitAnswer}
+                    disabled={false} // All players can answer
+                    activePowerups={activePowerups}
+                    onClearPowerup={clearPowerupEffect}
+                  />
+                </div>
               </div>
             )}
 
@@ -720,7 +735,7 @@ export default function GamePage() {
             <PowerupDisplay 
               playerId={currentPlayer.room_player_id}
               onUsePowerup={handleUsePowerup}
-              disabled={!isMyTurn() || gamePhase !== 'dice'}
+              disabled={gamePhase !== 'question'}
               refreshTrigger={powerupRefreshTrigger}
             />
             
