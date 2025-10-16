@@ -10,6 +10,7 @@ import { QuizQuestion } from '@/components/QuizQuestion';
 import { QRScanner } from '@/components/QRScanner';
 import { PowerupDisplay } from '@/components/PowerupDisplay';
 import { PowerupModal } from '@/components/PowerupModal';
+import { PowerupActivationModal } from '@/components/PowerupActivationModal';
 import type { SessionPlayer, Question, PowerUpType, PowerUp} from '@/types/database.types';
 
 interface CurrentQuestion extends Question {
@@ -33,6 +34,11 @@ export default function GamePage() {
     message: string;
   } | null>(null);
   const [powerupRefreshTrigger, setPowerupRefreshTrigger] = useState(0);
+  const [showPowerupActivationModal, setShowPowerupActivationModal] = useState(false);
+  const [powerupActivationData, setPowerupActivationData] = useState<{
+    powerupType: string;
+    message: string;
+  } | null>(null);
   // Powerup effect states
   const [activePowerups, setActivePowerups] = useState<{
     extraTime?: boolean;
@@ -514,7 +520,7 @@ export default function GamePage() {
       }
     }
 
-    // Show confirmation message
+    // Show activation modal
     const messages = {
       extra_time: '⏰ Extra Time activated! +10 seconds on your next question.',
       skip_question: '⏭️ Skip Question activated! You can skip your next question and get full points.',
@@ -523,12 +529,21 @@ export default function GamePage() {
       shield: '🛡️ Shield activated! Next wrong answer won\'t count against you.'
     };
     
-    alert(messages[powerupType] || 'Powerup activated!');
+    setPowerupActivationData({
+      powerupType,
+      message: messages[powerupType] || 'Powerup activated!'
+    });
+    setShowPowerupActivationModal(true);
   };
 
   const handleClosePowerupModal = () => {
     setShowPowerupModal(false);
     setPowerupModalData(null);
+  };
+
+  const handleClosePowerupActivationModal = () => {
+    setShowPowerupActivationModal(false);
+    setPowerupActivationData(null);
   };
 
   // Clear powerup effects after they're used
@@ -737,6 +752,16 @@ export default function GamePage() {
           onClose={handleClosePowerupModal}
           powerup={powerupModalData.powerup}
           message={powerupModalData.message}
+        />
+      )}
+
+      {/* Powerup Activation Modal */}
+      {showPowerupActivationModal && powerupActivationData && (
+        <PowerupActivationModal
+          isOpen={showPowerupActivationModal}
+          onClose={handleClosePowerupActivationModal}
+          powerupType={powerupActivationData.powerupType}
+          message={powerupActivationData.message}
         />
       )}
     </div>
