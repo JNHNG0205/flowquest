@@ -9,7 +9,8 @@ import { DiceRoller } from '@/components/DiceRoller';
 import { QuizQuestion } from '@/components/QuizQuestion';
 import { QRScanner } from '@/components/QRScanner';
 import { PowerupDisplay } from '@/components/PowerupDisplay';
-import type { SessionPlayer, Question, PowerUpType} from '@/types/database.types';
+import { PowerupModal } from '@/components/PowerupModal';
+import type { SessionPlayer, Question, PowerUpType, PowerUp} from '@/types/database.types';
 
 interface CurrentQuestion extends Question {
   room_question_id?: string;
@@ -26,6 +27,11 @@ export default function GamePage() {
   const [currentPlayer, setCurrentPlayer] = useState<SessionPlayer | null>(null);
   const [showScanner, setShowScanner] = useState(false);
   const [diceValue, setDiceValue] = useState<number | null>(null);
+  const [showPowerupModal, setShowPowerupModal] = useState(false);
+  const [powerupModalData, setPowerupModalData] = useState<{
+    powerup: PowerUp | null;
+    message: string;
+  } | null>(null);
   // Game flow states
   const [gamePhase, setGamePhase] = useState<'dice' | 'question' | 'answering' | 'results' | 'waiting'>('dice');
   const [currentQuestion, setCurrentQuestion] = useState<CurrentQuestion | null>(null);
@@ -291,9 +297,32 @@ export default function GamePage() {
           const powerupResult = await powerupResponse.json();
 
           if (powerupResult.success) {
-            // Show powerup obtained message
-            alert(`🎉 ${powerupResult.data.message}`);
-            // Refresh powerups display (will be handled by PowerupDisplay component)
+            // Show powerup modal
+            setPowerupModalData({
+              powerup: powerupResult.data.powerup,
+              message: powerupResult.data.message
+            });
+            setShowPowerupModal(true);
+            
+            // Advance to next turn after getting powerup
+            setTimeout(async () => {
+              try {
+                const response = await fetch('/api/game/next-turn', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    sessionId: session.room_id,
+                  }),
+                });
+
+                if (!response.ok) {
+                  throw new Error('Failed to advance turn');
+                }
+              } catch (error) {
+                console.error('Next turn error:', error);
+              }
+            }, 1000); // Small delay to ensure powerup is processed
+            
             return;
           } else {
             // If powerup failed (e.g., player has max powerups), fall back to question
@@ -444,6 +473,11 @@ export default function GamePage() {
       default:
         alert('Powerup used!');
     }
+  };
+
+  const handleClosePowerupModal = () => {
+    setShowPowerupModal(false);
+    setPowerupModalData(null);
   };
 
   const leaveRoom = async () => {
@@ -627,6 +661,16 @@ export default function GamePage() {
         <QRScanner
           onScan={handleTileScan}
           onClose={() => setShowScanner(false)}
+        />
+      )}
+
+      {/* Powerup Modal */}
+      {showPowerupModal && powerupModalData && (
+        <PowerupModal
+          isOpen={showPowerupModal}
+          onClose={handleClosePowerupModal}
+          powerup={powerupModalData.powerup}
+          message={powerupModalData.message}
         />
       )}
     </div>
