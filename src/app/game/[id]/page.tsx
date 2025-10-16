@@ -260,9 +260,11 @@ export default function GamePage() {
 
       // Parse tile data (assuming format: "tile:position" or just position number)
       let tilePosition = currentPlayer.position || 0;
+      let tileType = 'question'; // Default to question tile
       try {
         const parsedData = JSON.parse(data);
         tilePosition = parsedData.position || parsedData.tile || tilePosition;
+        tileType = parsedData.type || 'question'; // Get tile type from QR data
       } catch {
         // If not JSON, try to parse as number
         const num = parseInt(data.replace(/\D/g, ''));
@@ -271,8 +273,8 @@ export default function GamePage() {
         }
       }
 
-      // Randomly decide if this tile gives a powerup or a question (70% question, 30% powerup)
-      const isPowerupTile = Math.random() < 0.3;
+      // Determine if this tile gives a powerup or question based on QR data
+      const isPowerupTile = tileType === 'powerup';
 
       if (isPowerupTile) {
         // Try to get a powerup

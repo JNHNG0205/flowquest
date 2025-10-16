@@ -21,6 +21,11 @@ const questionTiles = [
   { position: 13, type: 'question', description: 'Question Tile 13' },
   { position: 14, type: 'question', description: 'Question Tile 14' },
   { position: 15, type: 'question', description: 'Question Tile 15' },
+  { position: 16, type: 'question', description: 'Question Tile 16' },
+  { position: 17, type: 'question', description: 'Question Tile 17' },
+  { position: 18, type: 'question', description: 'Question Tile 18' },
+  { position: 19, type: 'question', description: 'Question Tile 19' },
+  { position: 20, type: 'question', description: 'Question Tile 20' },
 ];
 
 async function generateQRCode(data, filename) {
@@ -63,8 +68,8 @@ async function generateAllQRCodes() {
   console.log('🎮 FlowQuest Powerup QR Code Generator');
   console.log('=====================================\n');
   
-  console.log('📋 POWERUP TILES (30% chance to get powerup):');
-  console.log('These tiles have a 30% chance to give you a random powerup!\n');
+  console.log('📋 POWERUP TILES (100% guaranteed powerup):');
+  console.log('These tiles will ALWAYS give you a random powerup!\n');
   
   // Generate powerup tiles
   for (const tile of powerupTiles) {
@@ -73,8 +78,8 @@ async function generateAllQRCodes() {
     await generateQRCode(data, filename);
   }
   
-  console.log('\n📋 QUESTION TILES (70% chance to get question):');
-  console.log('These tiles will give you a quiz question.\n');
+  console.log('\n📋 QUESTION TILES (100% guaranteed question):');
+  console.log('These tiles will ALWAYS give you a quiz question.\n');
   
   // Generate question tiles
   for (const tile of questionTiles) {
@@ -88,8 +93,8 @@ async function generateAllQRCodes() {
   console.log('2. In the game, when it\'s your turn:');
   console.log('   - Roll the dice');
   console.log('   - Scan any of these QR codes');
-  console.log('   - Powerup tiles have 30% chance to give you a powerup');
-  console.log('   - Question tiles will give you a quiz question');
+  console.log('   - Powerup tiles (type: "powerup") will ALWAYS give you a powerup');
+  console.log('   - Question tiles (type: "question") will ALWAYS give you a quiz question');
   console.log('3. You can hold maximum 3 powerups at once');
   console.log('4. Use powerups during your turn for strategic advantage!\n');
   
