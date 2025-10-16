@@ -24,6 +24,7 @@ export function QuizQuestion({ question, timeLimit, onSubmit, disabled, activePo
   const [submitted, setSubmitted] = useState(false);
   const [startTime] = useState(Date.now());
   const [showHint, setShowHint] = useState(false);
+  const [currentTimeLimit, setCurrentTimeLimit] = useState(timeLimit);
 
   // Ensure options is an array
   const options = Array.isArray(question.options) 
@@ -31,6 +32,15 @@ export function QuizQuestion({ question, timeLimit, onSubmit, disabled, activePo
     : typeof question.options === 'string' 
     ? JSON.parse(question.options) 
     : [];
+
+  // Handle extra time powerup
+  useEffect(() => {
+    if (activePowerups?.extraTime && !submitted) {
+      const extraTime = 10;
+      setCurrentTimeLimit(prev => prev + extraTime);
+      setTimeLeft(prev => prev + extraTime);
+    }
+  }, [activePowerups?.extraTime, submitted]);
 
   useEffect(() => {
     if (submitted || disabled) return;
@@ -71,7 +81,7 @@ export function QuizQuestion({ question, timeLimit, onSubmit, disabled, activePo
     onSubmit(answer, timeTaken);
   };
 
-  const progressPercentage = (timeLeft / timeLimit) * 100;
+  const progressPercentage = (timeLeft / currentTimeLimit) * 100;
   const isUrgent = timeLeft <= 10;
 
   return (

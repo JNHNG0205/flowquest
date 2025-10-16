@@ -534,6 +534,9 @@ export default function GamePage() {
       message: messages[powerupType] || 'Powerup activated!'
     });
     setShowPowerupActivationModal(true);
+    
+    // Trigger immediate refresh of powerup display
+    setPowerupRefreshTrigger(prev => prev + 1);
   };
 
   const handleClosePowerupModal = () => {
@@ -732,12 +735,6 @@ export default function GamePage() {
           <div className="space-y-6">
             <Scoreboard players={players} currentPlayerId={currentPlayer.room_player_id} />
             
-            <PowerupDisplay 
-              playerId={currentPlayer.room_player_id}
-              onUsePowerup={handleUsePowerup}
-              disabled={gamePhase !== 'question'}
-              refreshTrigger={powerupRefreshTrigger}
-            />
             
             {session.status === 'in_progress' && (
               <button
