@@ -21,16 +21,23 @@ export default async function Home() {
     redirect('/login');
   }
 
-  // Check if user has an active room
-  const { data: playerInRoom } = await supabase
+  // Check if user has an active room (as any player, not just host)
+  const { data: playerRooms, error } = await supabase
     .from('room_players')
     .select('room_id, rooms!inner(*)')
     .eq('user_id', user.id)
     .eq('rooms.is_active', true)
-    .in('rooms.status', ['waiting', 'in_progress'])
-    .single();
+    .in('rooms.status', ['waiting', 'in_progress']);
 
-  const activeRoom = playerInRoom?.rooms as any;
+  // Get the most recent active room
+  const activeRoom = playerRooms && playerRooms.length > 0 
+    ? playerRooms[playerRooms.length - 1]?.rooms as any
+    : null;
+
+  // Debug: Log the query results (remove in production)
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Player rooms query result:', { playerRooms, error, activeRoom });
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center p-4">
