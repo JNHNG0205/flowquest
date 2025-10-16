@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { cookies } from 'next/headers';
-import { usePowerUp } from '@/lib/database';
+import { consumePowerUp } from '@/lib/database';
 
 /**
  * POST /api/powerups/use
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Use the powerup
-    const result = await usePowerUp(powerupId, playerId);
+    const result = await consumePowerUp(powerupId, playerId);
 
     return NextResponse.json({
       success: true,

@@ -496,7 +496,7 @@ export async function getPlayerPowerUps(roomPlayerId: string): Promise<(PlayerPo
 /**
  * Use a powerup
  */
-export async function usePowerUp(
+export async function consumePowerUp(
   playerPowerupId: string,
   roomPlayerId: string
 ): Promise<{ success: boolean; effect?: any }> {
