@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
           const nextTurn = nextPlayerIndex === 0 ? currentTurn + 1 : currentTurn;
 
           // Update the session directly
-          const { error: turnError } = await supabase
+          const { data: updatedSession, error: turnError } = await supabase
             .from('rooms')
             .update({
               current_player_index: nextPlayerIndex,
@@ -196,6 +196,27 @@ export async function POST(request: NextRequest) {
           if (turnError) {
             console.error('Failed to advance turn:', turnError);
           } else {
+            // If 10 rounds reached, complete the game and determine winner
+            if (nextTurn >= 10) {
+              try {
+                const { data: rankedPlayers } = await supabase
+                  .from('room_players')
+                  .select('*')
+                  .eq('room_id', roomId)
+                  .order('score', { ascending: false })
+                  .order('room_player_id', { ascending: true })
+                  .limit(1);
+
+                const winner = rankedPlayers && rankedPlayers.length > 0 ? rankedPlayers[0] : null;
+
+                await supabase
+                  .from('rooms')
+                  .update({ status: 'completed' })
+                  .eq('room_id', roomId);
+              } catch (e) {
+                console.error('Failed to complete game after final round:', e);
+              }
+            }
           }
         }
       } catch (turnErr) {

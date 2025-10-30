@@ -75,12 +75,46 @@ export async function POST(request: NextRequest) {
       throw new Error(`Failed to update turn: ${updateError.message}`);
     }
 
+    // If we've reached 10 rounds, end the game and determine winner
+    let winner: any = null;
+    let finalSession = updatedSession;
+    if (nextTurn >= 10) {
+      try {
+        // Get players ordered by score desc, then by earliest join (room_player_id) as tiebreaker
+        const { data: rankedPlayers } = await supabase
+          .from('room_players')
+          .select('*')
+          .eq('room_id', sessionId)
+          .order('score', { ascending: false })
+          .order('room_player_id', { ascending: true })
+          .limit(1);
+
+        winner = rankedPlayers && rankedPlayers.length > 0 ? rankedPlayers[0] : null;
+
+        // Mark room as completed
+        const { data: completedSession } = await supabase
+          .from('rooms')
+          .update({ status: 'completed' })
+          .eq('room_id', sessionId)
+          .select()
+          .single();
+
+        if (completedSession) {
+          finalSession = completedSession;
+        }
+      } catch (e) {
+        console.error('Failed to complete game:', e);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       data: { 
-        session: updatedSession,
+        session: finalSession,
         nextPlayerIndex,
         nextTurn,
+        completed: nextTurn >= 10,
+        winner,
       },
     });
   } catch (error) {
