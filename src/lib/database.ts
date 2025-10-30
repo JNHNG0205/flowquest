@@ -333,11 +333,24 @@ export async function submitAnswer(
     if (powerupEffects?.doublePoints) {
       pointsEarned = pointsEarned * 2;
     }
+  } else {
+    // Incorrect answer: apply penalty unless shielded
+    const difficulty = roomQuestion.question.difficulty?.toLowerCase() || 'medium';
+    const basePointsMap: Record<string, number> = {
+      easy: 10,
+      medium: 15,
+      hard: 20,
+    };
+    const basePoints = basePointsMap[difficulty] || 10;
+
+    // Penalty is half of base points, rounded
+    const penalty = Math.round(basePoints * 0.5);
+    pointsEarned = isShielded ? 0 : -penalty;
   }
 
 
-  // Update player score
-  if (pointsEarned > 0) {
+  // Update player score (supports positive and negative changes)
+  if (pointsEarned !== 0) {
     try {
       // Get current score
       const { data: currentPlayer, error: fetchError } = await supabase
