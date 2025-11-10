@@ -128,7 +128,7 @@ export async function joinGameSession(
     const isAlreadyInTargetRoom = activeMemberships.some((membership) => membership.room_id === room.room_id);
 
     if (!isAlreadyInTargetRoom) {
-      const activeRoom = activeMemberships[0]?.room_details;
+      const activeRoom = activeMemberships[0]?.room_details as unknown as Room;
       const activeRoomCode = activeRoom?.room_code ? ` (${activeRoom.room_code})` : '';
       throw new Error(`You must leave your current room${activeRoomCode} before joining a new one.`);
     }
