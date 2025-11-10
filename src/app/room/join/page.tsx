@@ -1,16 +1,78 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { QRScanner } from '@/components/QRScanner';
+import { createClient } from '@/utils/supabase/client';
+import type { Room } from '@/types/database.types';
 
 function JoinRoomContent() {
   const [roomCode, setRoomCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [showScanner, setShowScanner] = useState(false);
+  const [activeRoom, setActiveRoom] = useState<Room | null>(null);
+  const [checkingMembership, setCheckingMembership] = useState(true);
+  const [leaveLoading, setLeaveLoading] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const supabase = useMemo(() => createClient(), []);
+
+  const fetchActiveRoom = useCallback(async () => {
+    setCheckingMembership(true);
+    try {
+      const { data: userData, error: authError } = await supabase.auth.getUser();
+
+      if (authError || !userData?.user) {
+        setActiveRoom(null);
+        return;
+      }
+
+      const { data: memberships, error: membershipsError } = await supabase
+        .from('room_players')
+        .select('room_id')
+        .eq('user_id', userData.user.id);
+
+      if (membershipsError || !memberships || memberships.length === 0) {
+        setActiveRoom(null);
+        return;
+      }
+
+      const roomIds = memberships.map((membership) => membership.room_id).filter(Boolean);
+
+      if (roomIds.length === 0) {
+        setActiveRoom(null);
+        return;
+      }
+
+      const { data: rooms, error: roomsError } = await supabase
+        .from('rooms')
+        .select('*')
+        .in('room_id', roomIds)
+        .eq('is_active', true);
+
+      if (roomsError || !rooms || rooms.length === 0) {
+        setActiveRoom(null);
+        return;
+      }
+
+      const existingRoom = rooms.find((room) =>
+        room.status === 'waiting' || room.status === 'in_progress'
+      );
+
+      setActiveRoom(existingRoom ?? null);
+    } catch (err) {
+      console.error('Fetch active room error:', err);
+      setActiveRoom(null);
+    } finally {
+      setCheckingMembership(false);
+    }
+  }, [supabase]);
+
+  useEffect(() => {
+    fetchActiveRoom();
+  }, [fetchActiveRoom]);
 
   const joinRoom = async (code?: string) => {
     const codeToJoin = code || roomCode;
@@ -23,6 +85,7 @@ function JoinRoomContent() {
     try {
       setLoading(true);
       setError('');
+      setNotice('');
 
       const response = await fetch('/api/rooms/join', {
         method: 'POST',
@@ -41,7 +104,11 @@ function JoinRoomContent() {
       router.push(`/room/${data.data.session.room_id}`);
     } catch (err) {
       console.error('Join room error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to join room');
+      const message = err instanceof Error ? err.message : 'Failed to join room';
+      setError(message);
+      if (message.includes('current room')) {
+        fetchActiveRoom();
+      }
     } finally {
       setLoading(false);
     }
@@ -59,6 +126,7 @@ function JoinRoomContent() {
 
   const handleQRScan = (data: string) => {
     setShowScanner(false);
+    setNotice('');
 
     // Extract room code from URL
     try {
@@ -81,6 +149,38 @@ function JoinRoomContent() {
     }
   };
 
+  const leaveActiveRoom = async () => {
+    if (!activeRoom) return;
+
+    try {
+      setLeaveLoading(true);
+      setError('');
+      setNotice('');
+
+      const response = await fetch('/api/rooms/leave', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomId: activeRoom.room_id }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to leave room');
+      }
+
+      setNotice('You have left your previous room. You can join a new room now.');
+      await fetchActiveRoom();
+    } catch (err) {
+      console.error('Leave room error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to leave room');
+    } finally {
+      setLeaveLoading(false);
+    }
+  };
+
+  const joinDisabled = loading || roomCode.length !== 6 || !!activeRoom;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center p-4">
       <div className="max-w-md w-full">
@@ -90,6 +190,31 @@ function JoinRoomContent() {
         </div>
 
         <div className="bg-white rounded-xl shadow-2xl p-8">
+          {checkingMembership && (
+            <div className="mb-6 p-3 bg-blue-50 text-blue-700 rounded-lg text-sm">
+              Checking for active rooms...
+            </div>
+          )}
+
+          {activeRoom && (
+            <div className="mb-6 p-4 bg-yellow-100 border-2 border-yellow-300 rounded-lg">
+              <h2 className="text-lg font-semibold text-yellow-900 mb-2">Existing Room Detected</h2>
+              <p className="text-yellow-800 text-sm mb-3">
+                You are currently in room{' '}
+                <span className="font-semibold">
+                  {activeRoom.room_code ?? activeRoom.room_id}
+                </span>. Leave it before joining another room.
+              </p>
+              <button
+                onClick={leaveActiveRoom}
+                disabled={leaveLoading}
+                className="w-full bg-red-600 text-white py-2 rounded-lg font-semibold hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+              >
+                {leaveLoading ? 'Leaving...' : 'Leave Current Room'}
+              </button>
+            </div>
+          )}
+
           {/* Room Code Input */}
           <div className="mb-6">
             <label className="block text-gray-700 font-semibold mb-2">
@@ -102,12 +227,20 @@ function JoinRoomContent() {
                 const value = e.target.value.replace(/\D/g, '').slice(0, 6);
                 setRoomCode(value);
                 if (error) setError('');
+                if (notice) setNotice('');
               }}
               placeholder="000000"
               className="w-full px-4 py-3 text-2xl text-center font-bold border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none tracking-widest"
               maxLength={6}
             />
           </div>
+
+          {/* Notices */}
+          {notice && (
+            <div className="mb-6 p-3 bg-green-100 text-green-700 rounded-lg text-sm">
+              {notice}
+            </div>
+          )}
 
           {/* Error */}
           {error && (
@@ -119,10 +252,10 @@ function JoinRoomContent() {
           {/* Join Button */}
           <button
             onClick={() => joinRoom()}
-            disabled={loading || roomCode.length !== 6}
+            disabled={joinDisabled}
             className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors mb-4"
           >
-            {loading ? 'Joining...' : 'Join Room'}
+            {loading ? 'Joining...' : activeRoom ? 'Leave current room to join' : 'Join Room'}
           </button>
 
           {/* Divider */}
