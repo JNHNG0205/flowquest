@@ -104,6 +104,36 @@ export async function joinGameSession(
     throw new Error('Room not found or game already started');
   }
 
+  // Ensure user is not part of another active room (waiting or in progress)
+  const { data: activeMemberships, error: activeMembershipsError } = await supabase
+    .from('room_players')
+    .select(`
+      room_id,
+      room_details:rooms!inner (
+        room_id,
+        room_code,
+        status,
+        is_active
+      )
+    `)
+    .eq('user_id', userId)
+    .eq('room_details.is_active', true)
+    .in('room_details.status', ['waiting', 'in_progress']);
+
+  if (activeMembershipsError) {
+    throw new Error(`Failed to check existing room membership: ${activeMembershipsError.message}`);
+  }
+
+  if (activeMemberships && activeMemberships.length > 0) {
+    const isAlreadyInTargetRoom = activeMemberships.some((membership) => membership.room_id === room.room_id);
+
+    if (!isAlreadyInTargetRoom) {
+      const activeRoom = activeMemberships[0]?.room_details;
+      const activeRoomCode = activeRoom?.room_code ? ` (${activeRoom.room_code})` : '';
+      throw new Error(`You must leave your current room${activeRoomCode} before joining a new one.`);
+    }
+  }
+
   // Check if user already joined
   const { data: existingPlayer } = await supabase
     .from('room_players')
