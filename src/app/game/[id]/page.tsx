@@ -11,6 +11,7 @@ import { QRScanner } from '@/components/QRScanner';
 import { PowerupDisplay } from '@/components/PowerupDisplay';
 import { PowerupModal } from '@/components/PowerupModal';
 import { PowerupActivationModal } from '@/components/PowerupActivationModal';
+import { VirtualBoard } from '@/components/VirtualBoard';
 import type { SessionPlayer, Question, PowerUpType, PowerUp} from '@/types/database.types';
 
 interface CurrentQuestion extends Question {
@@ -735,6 +736,10 @@ export default function GamePage() {
           <div className="space-y-6">
             <Scoreboard players={players} currentPlayerId={currentPlayer.room_player_id} />
             
+            <VirtualBoard 
+              players={players} 
+              currentPlayerId={currentPlayer.room_player_id} 
+            />
             
             {session.status === 'in_progress' && (
               <button
