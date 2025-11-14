@@ -143,12 +143,12 @@ export async function joinGameSession(
     .single();
 
   if (existingPlayer) {
-    // Get all players
+    // Get all players ordered by join order (room_player_id) to maintain consistent player numbers
     const { data: players } = await supabase
       .from('room_players')
       .select('*')
       .eq('room_id', room.room_id)
-      .order('position', { ascending: true });
+      .order('room_player_id', { ascending: true });
 
     return { session: room, player: existingPlayer, players: players || [] };
   }
@@ -169,12 +169,12 @@ export async function joinGameSession(
     throw new Error(`Failed to join room: ${playerError?.message}`);
   }
 
-  // Get all players
+  // Get all players ordered by join order (room_player_id) to maintain consistent player numbers
   const { data: players } = await supabase
     .from('room_players')
     .select('*')
     .eq('room_id', room.room_id)
-    .order('position', { ascending: true });
+    .order('room_player_id', { ascending: true });
 
   return { session: room, player, players: players || [] };
 }
@@ -446,11 +446,12 @@ export async function getGameState(roomId: string) {
     .eq('room_id', roomId)
     .single();
 
+  // Get players ordered by join order (room_player_id) to maintain consistent player numbers
   const { data: players } = await supabase
     .from('room_players')
     .select('*')
     .eq('room_id', roomId)
-    .order('score', { ascending: false });
+    .order('room_player_id', { ascending: true });
 
   return { session: room, players: players || [] };
 }
