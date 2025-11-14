@@ -5,7 +5,6 @@ import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import { useGameRealtime, useQuizRealtime } from '@/hooks/useGameRealtime';
 import { Scoreboard } from '@/components/Scoreboard';
-import { DiceRoller } from '@/components/DiceRoller';
 import { QuizQuestion } from '@/components/QuizQuestion';
 import { QRScanner } from '@/components/QRScanner';
 import { PowerupDisplay } from '@/components/PowerupDisplay';
@@ -28,7 +27,6 @@ export default function GamePage() {
   const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
   const [currentPlayer, setCurrentPlayer] = useState<SessionPlayer | null>(null);
   const [showScanner, setShowScanner] = useState(false);
-  const [diceValue, setDiceValue] = useState<number | null>(null);
   const [showPowerupModal, setShowPowerupModal] = useState(false);
   const [powerupModalData, setPowerupModalData] = useState<{
     powerup: PowerUp | null;
@@ -163,7 +161,6 @@ export default function GamePage() {
           setCurrentQuestion(null);
           setHasAnswered(false);
           setMyResult(null);
-          setDiceValue(null);
           lastQuestionIdRef.current = null;
           
           // Force React to re-render by updating render key
@@ -184,7 +181,6 @@ export default function GamePage() {
           setCurrentQuestion(null);
           setHasAnswered(false);
           setMyResult(null);
-          setDiceValue(null);
           lastQuestionIdRef.current = null;
           
           // Force React to re-render by updating render key
@@ -204,7 +200,6 @@ export default function GamePage() {
         setCurrentQuestion(null);
         setHasAnswered(false);
         setMyResult(null);
-        setDiceValue(null);
         lastQuestionIdRef.current = null;
         
         // Force React to re-render by updating render key
@@ -241,38 +236,6 @@ export default function GamePage() {
     return activePlayer?.room_player_id === currentPlayer.room_player_id;
   };
 
-  const handleDiceRoll = async (value: number) => {
-    setDiceValue(value);
-
-    if (!currentPlayer) return;
-
-    try {
-      // Update position
-      const newPosition = (currentPlayer.position || 0) + value;
-      
-      const response = await fetch('/api/game/move', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          playerId: currentPlayer.room_player_id,
-          position: newPosition,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update position');
-      }
-
-      // Show scanner to scan tile
-      setTimeout(() => {
-        setShowScanner(true);
-      }, 1000);
-    } catch (error) {
-      console.error('Move error:', error);
-      alert('Failed to update position');
-    }
-  };
-
   const handleTileScan = async (data: string) => {
     setShowScanner(false);
 
@@ -281,12 +244,13 @@ export default function GamePage() {
     try {
       setLoading(true);
 
-      // Parse tile data (assuming format: "tile:position" or just position number)
-      let tilePosition = currentPlayer.position || 0;
+      // Parse tile data from QR code
+      let tilePosition: number | null = null;
       let tileType = 'question'; // Default to question tile
+      
       try {
         const parsedData = JSON.parse(data);
-        tilePosition = parsedData.position || parsedData.tile || tilePosition;
+        tilePosition = parsedData.position || parsedData.tile || null;
         tileType = parsedData.type || 'question'; // Get tile type from QR data
       } catch {
         // If not JSON, try to parse as number
@@ -294,6 +258,55 @@ export default function GamePage() {
         if (!isNaN(num)) {
           tilePosition = num;
         }
+      }
+
+      // Validate tile position was extracted
+      if (tilePosition === null || tilePosition < 1) {
+        alert('Invalid QR code: Could not read tile position. Please scan a valid tile.');
+        setLoading(false);
+        return;
+      }
+
+      // Get player's previous position (0 means at start, which is position 1 on board)
+      const previousPosition = currentPlayer.position || 0;
+      const actualPreviousPosition = previousPosition === 0 ? 1 : previousPosition;
+
+      // Strict validation: new position must be 1-6 spaces ahead of previous position
+      const positionDifference = tilePosition - actualPreviousPosition;
+      
+      if (positionDifference < 1 || positionDifference > 6) {
+        alert(
+          `Invalid move! You can only move 1-6 spaces from your current position (${actualPreviousPosition}). ` +
+          `You tried to move to position ${tilePosition} (${positionDifference > 0 ? '+' : ''}${positionDifference} spaces). ` +
+          `Please scan the correct tile.`
+        );
+        setLoading(false);
+        // Reopen scanner to allow retry
+        setTimeout(() => setShowScanner(true), 500);
+        return;
+      }
+
+      // Update player position to the scanned tile position
+      try {
+        const moveResponse = await fetch('/api/game/move', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            playerId: currentPlayer.room_player_id,
+            position: tilePosition,
+          }),
+        });
+
+        if (!moveResponse.ok) {
+          const errorData = await moveResponse.json();
+          throw new Error(errorData.error || 'Failed to update position');
+        }
+      } catch (moveError) {
+        console.error('Move error:', moveError);
+        alert(moveError instanceof Error ? moveError.message : 'Failed to update position');
+        setLoading(false);
+        setTimeout(() => setShowScanner(true), 500);
+        return;
       }
 
       // Determine if this tile gives a powerup or question based on QR data
@@ -438,7 +451,6 @@ export default function GamePage() {
           setCurrentQuestion(null);
           setHasAnswered(false);
           setMyResult(null);
-          setDiceValue(null);
           lastQuestionIdRef.current = null;
           
           // Force React to re-render by updating render key
@@ -633,32 +645,51 @@ export default function GamePage() {
               </div>
             )}
 
-            {/* Phase 1: Dice Roll Phase */}
+            {/* Phase 1: Physical Dice Phase - Show QR Scanner */}
             {gamePhase === 'dice' && isMyTurn() && (
               <div className="bg-white rounded-lg shadow-lg p-8 flex flex-col items-center">
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">
-                  Your Turn - Roll the Dice!
+                  Your Turn - Roll Physical Dice & Scan Tile!
                 </h2>
-                <DiceRoller
-                  onRoll={handleDiceRoll}
-                  disabled={loading}
-                />
-                {diceValue && (
-                  <p className="mt-4 text-gray-700">
-                    You rolled {diceValue}! Move forward {diceValue} spaces
+                <div className="text-center mb-6">
+                  <p className="text-gray-700 mb-4">
+                    1. Roll your physical dice
                   </p>
+                  <p className="text-gray-700 mb-4">
+                    2. Move your piece on the physical board
+                  </p>
+                  <p className="text-gray-700 mb-4">
+                    3. Scan the QR code on the tile you landed on
+                  </p>
+                </div>
+                {!showScanner && (
+                  <button
+                    onClick={() => setShowScanner(true)}
+                    disabled={loading}
+                    className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {loading ? 'Loading...' : 'Scan Tile QR Code'}
+                  </button>
+                )}
+                {showScanner && (
+                  <div className="w-full">
+                    <QRScanner
+                      onScan={handleTileScan}
+                      onClose={() => setShowScanner(false)}
+                    />
+                  </div>
                 )}
               </div>
             )}
 
-            {/* Phase 1: Waiting for current player to roll dice */}
+            {/* Phase 1: Waiting for current player to scan tile */}
             {gamePhase === 'dice' && !isMyTurn() && (
               <div className="bg-white rounded-lg shadow-lg p-8 text-center">
                 <div className="animate-pulse text-4xl mb-4">⏳</div>
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">
                   Waiting for Player {((session.current_player_index || 0) + 1)}&apos;s turn
                 </h2>
-                <p className="text-gray-600">It&apos;s their turn to roll the dice</p>
+                <p className="text-gray-600">It&apos;s their turn to roll dice and scan a tile</p>
               </div>
             )}
 
@@ -776,13 +807,6 @@ export default function GamePage() {
         </div>
       </div>
 
-      {/* QR Scanner Modal */}
-      {showScanner && (
-        <QRScanner
-          onScan={handleTileScan}
-          onClose={() => setShowScanner(false)}
-        />
-      )}
 
       {/* Powerup Modal */}
       {showPowerupModal && powerupModalData && (

@@ -31,10 +31,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate position is within board range (1-36 for 10x10 perimeter board)
+    if (position < 1 || position > 36) {
+      return NextResponse.json(
+        { error: 'Invalid position: Position must be between 1 and 36' },
+        { status: 400 }
+      );
+    }
+
     // Verify player belongs to user
     const { data: player } = await supabase
       .from('room_players')
-      .select()
+      .select('position')
       .eq('room_player_id', playerId)
       .eq('user_id', user.id)
       .single();
@@ -43,6 +51,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Invalid player' },
         { status: 403 }
+      );
+    }
+
+    // Get player's previous position (0 means at start, which is position 1 on board)
+    const previousPosition = player.position || 0;
+    const actualPreviousPosition = previousPosition === 0 ? 1 : previousPosition;
+
+    // Strict validation: new position must be 1-6 spaces ahead of previous position
+    const positionDifference = position - actualPreviousPosition;
+    
+    if (positionDifference < 1 || positionDifference > 6) {
+      return NextResponse.json(
+        { 
+          error: `Invalid move! You can only move 1-6 spaces from your current position (${actualPreviousPosition}). ` +
+                  `You tried to move to position ${position} (${positionDifference > 0 ? '+' : ''}${positionDifference} spaces).`
+        },
+        { status: 400 }
       );
     }
 
