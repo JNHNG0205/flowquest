@@ -24,12 +24,15 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { sessionQuestionId, playerId, answer, timeTaken, powerupEffects } = body;
 
-    if (!sessionQuestionId || !playerId || !answer || timeTaken === undefined) {
+    if (!sessionQuestionId || !playerId || answer === undefined || timeTaken === undefined) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
       );
     }
+
+    // Allow empty string for timeout cases - will be treated as incorrect answer
+    const finalAnswer = answer || '';
 
     // Verify player belongs to user
     const { data: player } = await supabase
@@ -63,10 +66,11 @@ export async function POST(request: NextRequest) {
 
 
     // Submit answer with powerup effects
+    // Empty answer (timeout) will be treated as incorrect with penalty
     const { attempt, pointsEarned } = await submitAnswer(
       sessionQuestionId, 
       playerId, 
-      answer, 
+      finalAnswer, 
       timeTaken,
       powerupEffects
     );

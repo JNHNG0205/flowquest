@@ -61,6 +61,7 @@ export default function GamePage() {
     correctAnswer?: string;
     correct_answer?: string;
     explanation?: string;
+    isTimeout?: boolean; // Track if this was a timeout
   } | null>(null);
   const [renderKey, setRenderKey] = useState(0); // Force re-render key
   
@@ -391,6 +392,8 @@ export default function GamePage() {
     if (!currentQuestion || !currentPlayer) return;
 
     try {
+      const isTimeout = answer === ''; // Detect timeout
+      
       const response = await fetch('/api/quiz/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -413,7 +416,10 @@ export default function GamePage() {
       }
 
       // Store my result and transition to answering phase (waiting for others)
-      setMyResult(result.data);
+      setMyResult({
+        ...result.data,
+        isTimeout, // Add timeout flag
+      });
       setHasAnswered(true);
       
       // Check if all players have answered
@@ -716,12 +722,18 @@ export default function GamePage() {
                     {myResult.is_correct || myResult.correct ? '✅' : '❌'}
                   </div>
                   <h2 className={`text-2xl font-bold mb-2 ${myResult.is_correct || myResult.correct ? 'text-green-900' : 'text-red-900'}`}>
-                    {myResult.is_correct || myResult.correct ? 'Correct!' : 'Incorrect'}
+                    {myResult.isTimeout 
+                      ? 'Time\'s Up!' 
+                      : myResult.is_correct || myResult.correct 
+                        ? 'Correct!' 
+                        : 'Incorrect'}
                   </h2>
                   <p className="text-gray-700 mb-4">
                     {myResult.is_correct || myResult.correct 
                       ? `You earned ${myResult.points_earned || myResult.pointsEarned || 0} points!`
-                      : `The correct answer was: ${myResult.correct_answer || myResult.correctAnswer}`
+                      : myResult.isTimeout
+                        ? `Time ran out! You lost ${Math.abs(myResult.points_earned || myResult.pointsEarned || 0)} points. The correct answer was: ${myResult.correct_answer || myResult.correctAnswer}`
+                        : `The correct answer was: ${myResult.correct_answer || myResult.correctAnswer}`
                     }
                   </p>
                   <div className="animate-pulse text-sm text-gray-500">

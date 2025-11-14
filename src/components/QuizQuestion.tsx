@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { Question, PowerUpType } from '@/types/database.types';
 
 interface QuizQuestionProps {
@@ -42,27 +42,13 @@ export function QuizQuestion({ question, timeLimit, onSubmit, disabled, activePo
     }
   }, [activePowerups?.extraTime, submitted]);
 
-  useEffect(() => {
-    if (submitted || disabled) return;
-
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          handleSubmit(''); // Auto-submit on timeout
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [submitted, disabled]);
-
-  const handleSubmit = (answer: string) => {
+  const handleSubmit = useCallback((answer: string) => {
     if (submitted || disabled) return;
     setSubmitted(true);
-    const timeTaken = Math.floor((Date.now() - startTime) / 1000);
+    // Use timeLimit if timeout, otherwise calculate actual time taken
+    const timeTaken = answer === '' && timeLeft <= 0 
+      ? currentTimeLimit 
+      : Math.floor((Date.now() - startTime) / 1000);
     
     // Clear powerup effects after use
     if (activePowerups?.extraTime && onClearPowerup) {
@@ -79,9 +65,24 @@ export function QuizQuestion({ question, timeLimit, onSubmit, disabled, activePo
     }
     
     onSubmit(answer, timeTaken);
-  };
+  }, [submitted, disabled, timeLeft, currentTimeLimit, startTime, activePowerups, onClearPowerup, onSubmit]);
 
-  const progressPercentage = (timeLeft / currentTimeLimit) * 100;
+  useEffect(() => {
+    if (submitted || disabled) return;
+
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          handleSubmit(''); // Auto-submit on timeout with empty answer
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [submitted, disabled, handleSubmit]);
   const isUrgent = timeLeft <= 10;
 
   return (
