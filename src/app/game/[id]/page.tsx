@@ -127,7 +127,6 @@ export default function GamePage() {
       
       // Transition to question phase - show question to ALL players
       setGamePhase('question');
-      setDiceValue(null);
       setHasAnswered(false);
       setMyResult(null);
     }
