@@ -680,28 +680,45 @@ export default function GamePage() {
   };
 
   const startNewGame = async () => {
-    if (!session) return;
+    if (!session || !currentUser) return;
+    
+    // Check if user is host
+    if (session.host_id !== currentUser.id) {
+      alert('Only the host can start a new game.');
+      return;
+    }
+    
+    if (!confirm('Start a new game with the same players? All scores and positions will be reset.')) {
+      return;
+    }
     
     try {
       setLoading(true);
       
-      // Leave current room
-      await fetch('/api/rooms/leave', {
+      // Reset game state
+      const response = await fetch('/api/game/reset', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomId: session.room_id }),
+        body: JSON.stringify({ sessionId: session.room_id }),
       });
-      
-      // Redirect to create room page
-      router.push('/room/create');
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to reset game');
+      }
+
+      // Redirect to waiting room
+      router.push(`/room/${session.room_id}`);
     } catch (err) {
       console.error('Start new game error:', err);
-      alert('Failed to start new game. Redirecting to lobby...');
-      router.push('/');
+      alert(err instanceof Error ? err.message : 'Failed to start new game');
     } finally {
       setLoading(false);
     }
   };
+
+  // Check if current user is host
+  const isHost = session && currentUser && session.host_id === currentUser.id;
 
   // Get winner (player with highest score)
   const getWinner = () => {
@@ -831,13 +848,20 @@ export default function GamePage() {
               >
                 Return to Lobby
               </button>
-              <button
-                onClick={startNewGame}
-                disabled={loading}
-                className="px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-lg"
-              >
-                {loading ? 'Loading...' : 'Start New Game'}
-              </button>
+              {isHost && (
+                <button
+                  onClick={startNewGame}
+                  disabled={loading}
+                  className="px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-lg"
+                >
+                  {loading ? 'Resetting...' : 'Start New Game'}
+                </button>
+              )}
+              {!isHost && (
+                <div className="px-8 py-4 bg-gray-300 text-gray-600 rounded-lg font-semibold text-lg text-center">
+                  Waiting for host to start new game...
+                </div>
+              )}
             </div>
           </div>
         </div>
