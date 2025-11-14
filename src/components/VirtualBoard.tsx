@@ -10,70 +10,101 @@ interface VirtualBoardProps {
 }
 
 interface BoardCell {
-  position: number;
+  position: number | null; // null for empty center cells
   row: number;
   col: number;
   players: SessionPlayer[];
-}
-
-interface SurroundingQR {
-  type: 'question' | 'powerup';
-  position: number;
-  data: string;
+  isEmpty: boolean;
+  qrType?: 'question' | 'powerup'; // Type of QR code for this position
+  qrData?: string; // QR code data for this position
 }
 
 export function VirtualBoard({ players, currentPlayerId }: VirtualBoardProps) {
   const BOARD_SIZE = 10;
-  const TOTAL_POSITIONS = BOARD_SIZE * BOARD_SIZE;
+  // Calculate perimeter positions: top (10) + right (8) + bottom (10) + left (8) = 36
+  const PERIMETER_POSITIONS = (BOARD_SIZE * 2) + ((BOARD_SIZE - 2) * 2);
 
-  // Generate snake-like path positions
+  // Pre-generate QR code types for each position (stable across renders)
+  const qrTypes = useMemo(() => {
+    const types: ('question' | 'powerup')[] = [];
+    for (let i = 0; i < PERIMETER_POSITIONS; i++) {
+      types.push(Math.random() > 0.5 ? 'question' : 'powerup');
+    }
+    return types;
+  }, [PERIMETER_POSITIONS]);
+
+  // Generate Monopoly-style perimeter path (positions around the border)
   const boardLayout = useMemo(() => {
     const cells: BoardCell[] = [];
     
-    for (let i = 0; i < TOTAL_POSITIONS; i++) {
-      const row = Math.floor(i / BOARD_SIZE);
-      const isEvenRow = row % 2 === 0;
-      const col = isEvenRow 
-        ? i % BOARD_SIZE 
-        : BOARD_SIZE - 1 - (i % BOARD_SIZE);
-      
-      const position = i + 1;
-      const cellPlayers = players.filter(p => (p.position || 0) === position);
-      
-      cells.push({
-        position,
-        row,
-        col,
-        players: cellPlayers,
-      });
+    // Create a 10x10 grid
+    for (let row = 0; row < BOARD_SIZE; row++) {
+      for (let col = 0; col < BOARD_SIZE; col++) {
+        const isTopRow = row === 0;
+        const isBottomRow = row === BOARD_SIZE - 1;
+        const isLeftCol = col === 0;
+        const isRightCol = col === BOARD_SIZE - 1;
+        const isOnPerimeter = isTopRow || isBottomRow || isLeftCol || isRightCol;
+        
+        if (isOnPerimeter) {
+          // This cell is on the perimeter - assign a position
+          let position: number;
+          
+          if (isTopRow) {
+            // Top row: left to right (positions 1-10)
+            position = col + 1;
+          } else if (isRightCol && !isTopRow && !isBottomRow) {
+            // Right column: top to bottom (positions 11-18, excluding corners)
+            // row 1-8, so position = 10 + row
+            position = BOARD_SIZE + row;
+          } else if (isBottomRow) {
+            // Bottom row: right to left (positions 19-28)
+            // col 9-0, so position = 10 + 8 + (10 - col) = 18 + (10 - col)
+            position = BOARD_SIZE + (BOARD_SIZE - 2) + (BOARD_SIZE - col);
+          } else if (isLeftCol && !isTopRow && !isBottomRow) {
+            // Left column: bottom to top (positions 29-36, excluding corners)
+            // row 8→29, row 7→30, ..., row 1→36
+            // position = 28 + (9 - row) = 37 - row
+            position = (BOARD_SIZE * 2) + (BOARD_SIZE - 2) + (BOARD_SIZE - 1 - row);
+          } else {
+            // Should not happen, but fallback
+            position = 0;
+          }
+          
+          const cellPlayers = players.filter(p => (p.position || 0) === position);
+          
+          // Generate QR code data for this position
+          const qrType = qrTypes[position - 1] || (Math.random() > 0.5 ? 'question' : 'powerup');
+          const qrData = JSON.stringify({
+            type: qrType,
+            position,
+            description: `${qrType === 'question' ? 'Question' : 'Powerup'} Tile ${position}`,
+          });
+          
+          cells.push({
+            position,
+            row,
+            col,
+            players: cellPlayers,
+            isEmpty: false,
+            qrType,
+            qrData,
+          });
+        } else {
+          // This cell is in the center - empty
+          cells.push({
+            position: null,
+            row,
+            col,
+            players: [],
+            isEmpty: true,
+          });
+        }
+      }
     }
     
     return cells;
-  }, [players, TOTAL_POSITIONS]);
-
-  // Generate random QR codes surrounding the board
-  const surroundingQRs = useMemo(() => {
-    const qrs: SurroundingQR[] = [];
-    const numQRs = 20; // Number of QR codes around the board
-    
-    // Generate random positions and types
-    for (let i = 0; i < numQRs; i++) {
-      const type = Math.random() > 0.5 ? 'question' : 'powerup';
-      const position = TOTAL_POSITIONS + i + 1; // Positions beyond the board
-      
-      qrs.push({
-        type,
-        position,
-        data: JSON.stringify({
-          type,
-          position,
-          description: `${type === 'question' ? 'Question' : 'Powerup'} Tile ${position}`,
-        }),
-      });
-    }
-    
-    return qrs;
-  }, [TOTAL_POSITIONS]);
+  }, [players, PERIMETER_POSITIONS, qrTypes]);
 
   // Get player color based on their index
   const getPlayerColor = (playerIndex: number) => {
@@ -100,72 +131,49 @@ export function VirtualBoard({ players, currentPlayerId }: VirtualBoardProps) {
         Virtual Board
       </h3>
       
-      <div className="relative">
-        {/* Surrounding QR Codes - Top */}
-        <div className="flex justify-center gap-1 mb-1 flex-wrap">
-          {surroundingQRs.slice(0, 5).map((qr) => (
-            <div
-              key={qr.position}
-              className="flex flex-col items-center"
-              title={`${qr.type === 'question' ? 'Question' : 'Powerup'} Tile ${qr.position}`}
-            >
-              <div className="w-10 h-10 border border-gray-300 rounded overflow-hidden">
-                <QRCodeDisplay data={qr.data} size={40} />
-              </div>
-              <span className="text-[10px] text-gray-600 mt-0.5">
-                {qr.type === 'question' ? '❓' : '⚡'}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        {/* Main Board Grid */}
-        <div className="flex gap-1">
-          {/* Left QR Codes */}
-          <div className="flex flex-col justify-center gap-1">
-            {surroundingQRs.slice(5, 8).map((qr) => (
-              <div
-                key={qr.position}
-                className="flex flex-col items-center"
-                title={`${qr.type === 'question' ? 'Question' : 'Powerup'} Tile ${qr.position}`}
-              >
-                <div className="w-10 h-10 border border-gray-300 rounded overflow-hidden">
-                  <QRCodeDisplay data={qr.data} size={40} />
-                </div>
-                <span className="text-[10px] text-gray-600 mt-0.5">
-                  {qr.type === 'question' ? '❓' : '⚡'}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          {/* 10x10 Grid */}
-          <div className="grid grid-cols-10 gap-0.5 flex-1 min-w-0">
-            {boardLayout.map((cell) => (
-              <div
-                key={cell.position}
-                className={`
-                  aspect-square border rounded-sm
-                  ${cell.players.length > 0 
-                    ? 'border-blue-500 bg-blue-50' 
-                    : 'border-gray-300 bg-gray-50'
-                  }
-                  flex flex-col items-center justify-center
-                  text-xs font-semibold
-                  relative
-                  hover:bg-gray-100 transition-colors
-                  min-w-0
-                `}
-                title={`Position ${cell.position}`}
-              >
+      {/* 10x10 Grid */}
+      <div className="grid grid-cols-10 gap-0.5">
+        {boardLayout.map((cell) => (
+          <div
+            key={`${cell.row}-${cell.col}`}
+            className={`
+              aspect-square border rounded-sm
+              ${cell.isEmpty 
+                ? 'border-transparent bg-transparent' 
+                : cell.players.length > 0 
+                  ? 'border-blue-500 bg-blue-50' 
+                  : 'border-gray-300 bg-gray-50'
+              }
+              flex flex-col items-center justify-center
+              text-xs font-semibold
+              relative
+              ${!cell.isEmpty ? 'hover:bg-gray-100 transition-colors p-0.5' : ''}
+              min-w-0
+            `}
+            title={cell.isEmpty ? 'Empty' : `Position ${cell.position} - ${cell.qrType === 'question' ? 'Question' : 'Powerup'}`}
+          >
+            {!cell.isEmpty && cell.qrData && (
+              <>
                 {/* Position number */}
-                <span className="text-gray-500 text-[7px] absolute top-0 left-0.5 leading-none">
+                <span className="text-gray-500 text-[7px] absolute top-0 left-0.5 leading-none z-10 bg-white/80 px-0.5 rounded">
                   {cell.position}
                 </span>
 
-                {/* Player markers */}
+                {/* QR Code */}
+                <div className="w-full h-full flex items-center justify-center">
+                  <div className="w-full h-full max-w-[90%] max-h-[90%]">
+                    <QRCodeDisplay data={cell.qrData} size={60} />
+                  </div>
+                </div>
+
+                {/* QR Type indicator */}
+                <span className="text-[8px] absolute bottom-0 right-0.5 leading-none z-10 bg-white/80 px-0.5 rounded">
+                  {cell.qrType === 'question' ? '❓' : '⚡'}
+                </span>
+
+                {/* Player markers - overlay on top */}
                 {cell.players.length > 0 && (
-                  <div className="flex flex-wrap gap-0.5 justify-center items-center">
+                  <div className="absolute top-1 right-1 flex flex-wrap gap-0.5 justify-end items-start z-20">
                     {cell.players.map((player) => {
                       const playerIndex = players.findIndex(
                         p => p.room_player_id === player.room_player_id
@@ -181,6 +189,7 @@ export function VirtualBoard({ players, currentPlayerId }: VirtualBoardProps) {
                             flex items-center justify-center
                             ${isCurrentPlayer ? 'ring-1 ring-blue-600' : ''}
                             text-[7px] font-bold leading-none
+                            shadow-sm
                           `}
                           title={`Player ${getPlayerNumber(player.room_player_id)}${isCurrentPlayer ? ' (You)' : ''}`}
                         >
@@ -190,46 +199,10 @@ export function VirtualBoard({ players, currentPlayerId }: VirtualBoardProps) {
                     })}
                   </div>
                 )}
-              </div>
-            ))}
+              </>
+            )}
           </div>
-
-          {/* Right QR Codes */}
-          <div className="flex flex-col justify-center gap-1">
-            {surroundingQRs.slice(8, 11).map((qr) => (
-              <div
-                key={qr.position}
-                className="flex flex-col items-center"
-                title={`${qr.type === 'question' ? 'Question' : 'Powerup'} Tile ${qr.position}`}
-              >
-                <div className="w-10 h-10 border border-gray-300 rounded overflow-hidden">
-                  <QRCodeDisplay data={qr.data} size={40} />
-                </div>
-                <span className="text-[10px] text-gray-600 mt-0.5">
-                  {qr.type === 'question' ? '❓' : '⚡'}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Surrounding QR Codes - Bottom */}
-        <div className="flex justify-center gap-1 mt-1 flex-wrap">
-          {surroundingQRs.slice(11, 16).map((qr) => (
-            <div
-              key={qr.position}
-              className="flex flex-col items-center"
-              title={`${qr.type === 'question' ? 'Question' : 'Powerup'} Tile ${qr.position}`}
-            >
-              <div className="w-10 h-10 border border-gray-300 rounded overflow-hidden">
-                <QRCodeDisplay data={qr.data} size={40} />
-              </div>
-              <span className="text-[10px] text-gray-600 mt-0.5">
-                {qr.type === 'question' ? '❓' : '⚡'}
-              </span>
-            </div>
-          ))}
-        </div>
+        ))}
       </div>
 
       {/* Legend */}
