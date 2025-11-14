@@ -83,6 +83,8 @@ export function QuizQuestion({ question, timeLimit, onSubmit, disabled, activePo
 
     return () => clearInterval(timer);
   }, [submitted, disabled, handleSubmit]);
+
+  const progressPercentage = (timeLeft / currentTimeLimit) * 100;
   const isUrgent = timeLeft <= 10;
 
   return (

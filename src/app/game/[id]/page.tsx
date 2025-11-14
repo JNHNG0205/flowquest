@@ -705,8 +705,13 @@ export default function GamePage() {
                   {myResult && (
                     <div className="mt-4 p-4 bg-white rounded-lg">
                       <p className="text-sm text-gray-600">Your score:</p>
-                      <p className="text-2xl font-bold text-blue-900">
-                        +{myResult.points_earned || myResult.pointsEarned || 0} points
+                      <p className={`text-2xl font-bold ${
+                        (myResult.points_earned || myResult.pointsEarned || 0) < 0 
+                          ? 'text-red-600' 
+                          : 'text-blue-900'
+                      }`}>
+                        {(myResult.points_earned || myResult.pointsEarned || 0) >= 0 ? '+' : ''}
+                        {myResult.points_earned || myResult.pointsEarned || 0} points
                       </p>
                     </div>
                   )}
@@ -733,7 +738,12 @@ export default function GamePage() {
                       ? `You earned ${myResult.points_earned || myResult.pointsEarned || 0} points!`
                       : myResult.isTimeout
                         ? `Time ran out! You lost ${Math.abs(myResult.points_earned || myResult.pointsEarned || 0)} points. The correct answer was: ${myResult.correct_answer || myResult.correctAnswer}`
-                        : `The correct answer was: ${myResult.correct_answer || myResult.correctAnswer}`
+                        : (() => {
+                            const points = myResult.points_earned || myResult.pointsEarned || 0;
+                            return points < 0
+                              ? `You lost ${Math.abs(points)} points. The correct answer was: ${myResult.correct_answer || myResult.correctAnswer}`
+                              : `The correct answer was: ${myResult.correct_answer || myResult.correctAnswer}`;
+                          })()
                     }
                   </p>
                   <div className="animate-pulse text-sm text-gray-500">
