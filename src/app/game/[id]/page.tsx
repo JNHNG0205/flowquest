@@ -27,6 +27,12 @@ export default function GamePage() {
   const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
   const [currentPlayer, setCurrentPlayer] = useState<SessionPlayer | null>(null);
   const [showScanner, setShowScanner] = useState(false);
+  const [scannedTile, setScannedTile] = useState<{
+    position: number;
+    tileType: string;
+    moveDistance: number;
+    qrData: string;
+  } | null>(null);
   const [showPowerupModal, setShowPowerupModal] = useState(false);
   const [powerupModalData, setPowerupModalData] = useState<{
     powerup: PowerUp | null;
@@ -199,6 +205,8 @@ export default function GamePage() {
         setCurrentQuestion(null);
         setHasAnswered(false);
         setMyResult(null);
+        setScannedTile(null); // Clear any pending scan confirmation
+        setShowScanner(false); // Close scanner if open
         lastQuestionIdRef.current = null;
         
         // Force React to re-render by updating render key
@@ -241,8 +249,6 @@ export default function GamePage() {
     if (!session || !currentPlayer) return;
 
     try {
-      setLoading(true);
-
       // Parse tile data from QR code
       let tilePosition: number | null = null;
       let tileType = 'question'; // Default to question tile
@@ -262,7 +268,7 @@ export default function GamePage() {
       // Validate tile position was extracted
       if (tilePosition === null || tilePosition < 1) {
         alert('Invalid QR code: Could not read tile position. Please scan a valid tile.');
-        setLoading(false);
+        setTimeout(() => setShowScanner(true), 500);
         return;
       }
 
@@ -279,11 +285,29 @@ export default function GamePage() {
           `You tried to move to position ${tilePosition} (${positionDifference > 0 ? '+' : ''}${positionDifference} spaces). ` +
           `Please scan the correct tile.`
         );
-        setLoading(false);
-        // Reopen scanner to allow retry
         setTimeout(() => setShowScanner(true), 500);
         return;
       }
+
+      // Show confirmation screen instead of processing immediately
+      setScannedTile({
+        position: tilePosition,
+        tileType,
+        moveDistance: positionDifference,
+        qrData: data,
+      });
+    } catch (error) {
+      console.error('Tile scan error:', error);
+      alert('Failed to process QR code. Please try again.');
+      setTimeout(() => setShowScanner(true), 500);
+    }
+  };
+
+  const handleConfirmMove = async () => {
+    if (!scannedTile || !session || !currentPlayer) return;
+
+    try {
+      setLoading(true);
 
       // Update player position to the scanned tile position
       try {
@@ -292,7 +316,7 @@ export default function GamePage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             playerId: currentPlayer.room_player_id,
-            position: tilePosition,
+            position: scannedTile.position,
           }),
         });
 
@@ -304,12 +328,13 @@ export default function GamePage() {
         console.error('Move error:', moveError);
         alert(moveError instanceof Error ? moveError.message : 'Failed to update position');
         setLoading(false);
+        setScannedTile(null);
         setTimeout(() => setShowScanner(true), 500);
         return;
       }
 
       // Determine if this tile gives a powerup or question based on QR data
-      const isPowerupTile = tileType === 'powerup';
+      const isPowerupTile = scannedTile.tileType === 'powerup';
 
       if (isPowerupTile) {
         // Try to get a powerup
@@ -392,12 +417,21 @@ export default function GamePage() {
       };
       
       setCurrentQuestion(questionData);
+      
+      // Clear scanned tile after processing
+      setScannedTile(null);
     } catch (error) {
-      console.error('Tile scan error:', error);
-      alert(error instanceof Error ? error.message : 'Failed to load question');
+      console.error('Confirm move error:', error);
+      alert(error instanceof Error ? error.message : 'Failed to process move');
+      setScannedTile(null);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRescan = () => {
+    setScannedTile(null);
+    setTimeout(() => setShowScanner(true), 300);
   };
 
   const handleSubmitAnswer = async (answer: string, timeTaken: number) => {
@@ -644,8 +678,60 @@ export default function GamePage() {
               </div>
             )}
 
+            {/* Confirmation Modal - Show when tile is scanned */}
+            {scannedTile && gamePhase === 'dice' && isMyTurn() && (
+              <div className="bg-white rounded-lg shadow-lg p-8 max-w-2xl mx-auto">
+                <div className="text-center mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                    Confirm Your Move
+                  </h2>
+                  <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-6 mb-6">
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-700 font-medium">Current Position:</span>
+                        <span className="text-xl font-bold text-gray-900">
+                          {currentPlayer.position === 0 ? 1 : currentPlayer.position}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-700 font-medium">Scanned Position:</span>
+                        <span className="text-2xl font-bold text-purple-600">
+                          {scannedTile.position}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center border-t border-blue-200 pt-3">
+                        <span className="text-gray-700 font-medium">Move Distance:</span>
+                        <span className="text-xl font-bold text-blue-600">
+                          +{scannedTile.moveDistance} spaces
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-gray-600 mb-6">
+                    Check the highlighted tile on the virtual board. Is this where you landed?
+                  </p>
+                  <div className="flex gap-4 justify-center">
+                    <button
+                      onClick={handleRescan}
+                      disabled={loading}
+                      className="px-6 py-3 bg-gray-500 text-white rounded-lg font-semibold hover:bg-gray-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Rescan
+                    </button>
+                    <button
+                      onClick={handleConfirmMove}
+                      disabled={loading}
+                      className="px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {loading ? 'Processing...' : 'Confirm Move'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Phase 1: Physical Dice Phase - Show QR Scanner */}
-            {gamePhase === 'dice' && isMyTurn() && (
+            {gamePhase === 'dice' && isMyTurn() && !scannedTile && (
               <div className="bg-white rounded-lg shadow-lg p-8 flex flex-col items-center">
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">
                   Your Turn - Roll Physical Dice & Scan Tile!
@@ -674,7 +760,10 @@ export default function GamePage() {
                   <div className="w-full">
                     <QRScanner
                       onScan={handleTileScan}
-                      onClose={() => setShowScanner(false)}
+                      onClose={() => {
+                        setShowScanner(false);
+                        setScannedTile(null); // Clear any pending scan
+                      }}
                     />
                   </div>
                 )}
@@ -790,7 +879,8 @@ export default function GamePage() {
             
             <VirtualBoard 
               players={players} 
-              currentPlayerId={currentPlayer.room_player_id} 
+              currentPlayerId={currentPlayer.room_player_id}
+              highlightedPosition={scannedTile?.position || null}
             />
             
             {session.status === 'in_progress' && (

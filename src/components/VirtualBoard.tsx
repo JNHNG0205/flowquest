@@ -6,6 +6,7 @@ import type { SessionPlayer } from '@/types/database.types';
 interface VirtualBoardProps {
   players: SessionPlayer[];
   currentPlayerId?: string;
+  highlightedPosition?: number | null; // Position to highlight (e.g., scanned tile)
 }
 
 interface BoardCell {
@@ -17,7 +18,7 @@ interface BoardCell {
   tileType?: 'question' | 'powerup'; // Type of tile for this position
 }
 
-export function VirtualBoard({ players, currentPlayerId }: VirtualBoardProps) {
+export function VirtualBoard({ players, currentPlayerId, highlightedPosition }: VirtualBoardProps) {
   const BOARD_SIZE = 10;
   // Calculate perimeter positions: top (10) + right (8) + bottom (10) + left (8) = 36
   const PERIMETER_POSITIONS = (BOARD_SIZE * 2) + ((BOARD_SIZE - 2) * 2);
@@ -145,11 +146,13 @@ export function VirtualBoard({ players, currentPlayerId }: VirtualBoardProps) {
               aspect-square border rounded-sm
               ${cell.isEmpty 
                 ? 'border-transparent bg-transparent' 
-                : cell.position === 1
-                  ? 'border-green-500 bg-green-50'
-                  : cell.players.length > 0 
-                    ? 'border-blue-500 bg-blue-50' 
-                    : 'border-gray-300 bg-gray-50'
+                : cell.position === highlightedPosition
+                  ? 'border-purple-500 bg-purple-100 ring-4 ring-purple-300'
+                  : cell.position === 1
+                    ? 'border-green-500 bg-green-50'
+                    : cell.players.length > 0 
+                      ? 'border-blue-500 bg-blue-50' 
+                      : 'border-gray-300 bg-gray-50'
               }
               flex flex-col items-center justify-center
               text-xs font-semibold
