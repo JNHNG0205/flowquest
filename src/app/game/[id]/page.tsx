@@ -344,7 +344,7 @@ export default function GamePage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               playerId: currentPlayer.room_player_id,
-              tileData: data,
+              tileData: scannedTile.qrData,
             }),
           });
 
