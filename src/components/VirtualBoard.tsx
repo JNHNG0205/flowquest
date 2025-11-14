@@ -142,18 +142,13 @@ export function VirtualBoard({ players, currentPlayerId }: VirtualBoardProps) {
               ${!cell.isEmpty ? 'hover:bg-gray-100 transition-colors p-0.5' : ''}
               min-w-0
             `}
-            title={cell.isEmpty ? 'Empty' : `Position ${cell.position} - ${cell.tileType === 'question' ? 'Question' : 'Powerup'}`}
+            title={cell.isEmpty ? 'Empty' : `Position ${cell.position}`}
           >
             {!cell.isEmpty && (
               <>
                 {/* Position number */}
-                <span className="text-gray-700 text-xs font-bold">
+                <span className="text-gray-700 text-sm font-bold">
                   {cell.position}
-                </span>
-
-                {/* Tile Type indicator */}
-                <span className="text-sm mt-0.5">
-                  {cell.tileType === 'question' ? '❓' : '⚡'}
                 </span>
 
                 {/* Player markers */}
@@ -204,14 +199,6 @@ export function VirtualBoard({ players, currentPlayerId }: VirtualBoardProps) {
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 rounded-full bg-orange-400 border border-orange-600"></div>
             <span>P3</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span>❓</span>
-            <span>Q</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span>⚡</span>
-            <span>P</span>
           </div>
         </div>
       </div>
