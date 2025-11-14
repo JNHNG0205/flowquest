@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo } from 'react';
-import { QRCodeDisplay } from './QRCodeDisplay';
 import type { SessionPlayer } from '@/types/database.types';
 
 interface VirtualBoardProps {
@@ -15,8 +14,7 @@ interface BoardCell {
   col: number;
   players: SessionPlayer[];
   isEmpty: boolean;
-  qrType?: 'question' | 'powerup'; // Type of QR code for this position
-  qrData?: string; // QR code data for this position
+  tileType?: 'question' | 'powerup'; // Type of tile for this position
 }
 
 export function VirtualBoard({ players, currentPlayerId }: VirtualBoardProps) {
@@ -24,8 +22,8 @@ export function VirtualBoard({ players, currentPlayerId }: VirtualBoardProps) {
   // Calculate perimeter positions: top (10) + right (8) + bottom (10) + left (8) = 36
   const PERIMETER_POSITIONS = (BOARD_SIZE * 2) + ((BOARD_SIZE - 2) * 2);
 
-  // Pre-generate QR code types for each position (stable across renders)
-  const qrTypes = useMemo(() => {
+  // Pre-generate tile types for each position (stable across renders)
+  const tileTypes = useMemo(() => {
     const types: ('question' | 'powerup')[] = [];
     for (let i = 0; i < PERIMETER_POSITIONS; i++) {
       types.push(Math.random() > 0.5 ? 'question' : 'powerup');
@@ -73,13 +71,8 @@ export function VirtualBoard({ players, currentPlayerId }: VirtualBoardProps) {
           
           const cellPlayers = players.filter(p => (p.position || 0) === position);
           
-          // Generate QR code data for this position
-          const qrType = qrTypes[position - 1] || (Math.random() > 0.5 ? 'question' : 'powerup');
-          const qrData = JSON.stringify({
-            type: qrType,
-            position,
-            description: `${qrType === 'question' ? 'Question' : 'Powerup'} Tile ${position}`,
-          });
+          // Get tile type for this position
+          const tileType = tileTypes[position - 1] || (Math.random() > 0.5 ? 'question' : 'powerup');
           
           cells.push({
             position,
@@ -87,8 +80,7 @@ export function VirtualBoard({ players, currentPlayerId }: VirtualBoardProps) {
             col,
             players: cellPlayers,
             isEmpty: false,
-            qrType,
-            qrData,
+            tileType,
           });
         } else {
           // This cell is in the center - empty
@@ -104,7 +96,7 @@ export function VirtualBoard({ players, currentPlayerId }: VirtualBoardProps) {
     }
     
     return cells;
-  }, [players, PERIMETER_POSITIONS, qrTypes]);
+  }, [players, PERIMETER_POSITIONS, tileTypes]);
 
   // Get player color based on their index
   const getPlayerColor = (playerIndex: number) => {
@@ -150,28 +142,21 @@ export function VirtualBoard({ players, currentPlayerId }: VirtualBoardProps) {
               ${!cell.isEmpty ? 'hover:bg-gray-100 transition-colors p-0.5' : ''}
               min-w-0
             `}
-            title={cell.isEmpty ? 'Empty' : `Position ${cell.position} - ${cell.qrType === 'question' ? 'Question' : 'Powerup'}`}
+            title={cell.isEmpty ? 'Empty' : `Position ${cell.position} - ${cell.tileType === 'question' ? 'Question' : 'Powerup'}`}
           >
-            {!cell.isEmpty && cell.qrData && (
+            {!cell.isEmpty && (
               <>
                 {/* Position number */}
-                <span className="text-gray-500 text-[7px] absolute top-0 left-0.5 leading-none z-10 bg-white/80 px-0.5 rounded">
+                <span className="text-gray-700 text-xs font-bold">
                   {cell.position}
                 </span>
 
-                {/* QR Code */}
-                <div className="w-full h-full flex items-center justify-center">
-                  <div className="w-full h-full max-w-[90%] max-h-[90%]">
-                    <QRCodeDisplay data={cell.qrData} size={60} />
-                  </div>
-                </div>
-
-                {/* QR Type indicator */}
-                <span className="text-[8px] absolute bottom-0 right-0.5 leading-none z-10 bg-white/80 px-0.5 rounded">
-                  {cell.qrType === 'question' ? '❓' : '⚡'}
+                {/* Tile Type indicator */}
+                <span className="text-sm mt-0.5">
+                  {cell.tileType === 'question' ? '❓' : '⚡'}
                 </span>
 
-                {/* Player markers - overlay on top */}
+                {/* Player markers */}
                 {cell.players.length > 0 && (
                   <div className="absolute top-1 right-1 flex flex-wrap gap-0.5 justify-end items-start z-20">
                     {cell.players.map((player) => {
