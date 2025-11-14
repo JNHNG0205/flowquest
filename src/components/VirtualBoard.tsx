@@ -69,7 +69,16 @@ export function VirtualBoard({ players, currentPlayerId }: VirtualBoardProps) {
             position = 0;
           }
           
-          const cellPlayers = players.filter(p => (p.position || 0) === position);
+          // Players at position 0 or null should be shown at the start point (position 1)
+          const cellPlayers = players.filter(p => {
+            const playerPosition = p.position ?? 0;
+            // If player is at start (0 or null), show them at position 1
+            if (playerPosition === 0 && position === 1) {
+              return true;
+            }
+            // Otherwise, show them at their actual position
+            return playerPosition === position;
+          });
           
           // Get tile type for this position
           const tileType = tileTypes[position - 1] || (Math.random() > 0.5 ? 'question' : 'powerup');
@@ -132,9 +141,11 @@ export function VirtualBoard({ players, currentPlayerId }: VirtualBoardProps) {
               aspect-square border rounded-sm
               ${cell.isEmpty 
                 ? 'border-transparent bg-transparent' 
-                : cell.players.length > 0 
-                  ? 'border-blue-500 bg-blue-50' 
-                  : 'border-gray-300 bg-gray-50'
+                : cell.position === 1
+                  ? 'border-green-500 bg-green-50'
+                  : cell.players.length > 0 
+                    ? 'border-blue-500 bg-blue-50' 
+                    : 'border-gray-300 bg-gray-50'
               }
               flex flex-col items-center justify-center
               text-xs font-semibold
@@ -142,12 +153,21 @@ export function VirtualBoard({ players, currentPlayerId }: VirtualBoardProps) {
               ${!cell.isEmpty ? 'hover:bg-gray-100 transition-colors p-0.5' : ''}
               min-w-0
             `}
-            title={cell.isEmpty ? 'Empty' : `Position ${cell.position}`}
+            title={cell.isEmpty ? 'Empty' : cell.position === 1 ? 'Start Point - Position 1' : `Position ${cell.position}`}
           >
             {!cell.isEmpty && (
               <>
+                {/* Start point indicator */}
+                {cell.position === 1 && (
+                  <div className="absolute top-0 left-0 right-0 bottom-0 bg-gradient-to-br from-green-400/20 to-green-600/20 border-2 border-green-500 rounded-sm flex items-center justify-center">
+                    <span className="text-[8px] font-bold text-green-700 absolute top-0.5 left-0.5">START</span>
+                  </div>
+                )}
+                
                 {/* Position number */}
-                <span className="text-gray-700 text-sm font-bold">
+                <span className={`text-sm font-bold z-10 ${
+                  cell.position === 1 ? 'text-green-700' : 'text-gray-700'
+                }`}>
                   {cell.position}
                 </span>
 
