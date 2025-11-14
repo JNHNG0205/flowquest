@@ -398,7 +398,7 @@ export default function GamePage() {
         body: JSON.stringify({
           sessionId: session.room_id,
           roundNumber: session.current_turn || 0,
-          tilePosition,
+          tilePosition: scannedTile.position,
         }),
       });
 
