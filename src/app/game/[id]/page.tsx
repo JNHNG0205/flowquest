@@ -53,7 +53,7 @@ export default function GamePage() {
     shield?: boolean;
   }>({});
   // Game flow states
-  const [gamePhase, setGamePhase] = useState<'dice' | 'question' | 'answering' | 'results' | 'waiting'>('dice');
+  const [gamePhase, setGamePhase] = useState<'dice' | 'question' | 'answering' | 'results' | 'waiting' | 'completed'>('dice');
   const [currentQuestion, setCurrentQuestion] = useState<CurrentQuestion | null>(null);
   const [loading, setLoading] = useState(false);
   const [hasAnswered, setHasAnswered] = useState(false);
@@ -68,6 +68,7 @@ export default function GamePage() {
     isTimeout?: boolean; // Track if this was a timeout
   } | null>(null);
   const [renderKey, setRenderKey] = useState(0); // Force re-render key
+  const [gameCompleted, setGameCompleted] = useState(false);
   
   // Track previous turn/player to detect changes
   const prevTurnRef = useRef<number | null>(null);
@@ -95,6 +96,19 @@ export default function GamePage() {
       setCurrentPlayer(player || null);
     }
   }, [currentUser, players]);
+
+  // Check if game is completed
+  useEffect(() => {
+    if (session?.status === 'completed') {
+      setGameCompleted(true);
+      setGamePhase('completed');
+      // Clear any pending timeouts
+      if (resultsTimeoutRef.current) {
+        clearTimeout(resultsTimeoutRef.current);
+        resultsTimeoutRef.current = null;
+      }
+    }
+  }, [session?.status]);
 
   // Update question from realtime - Phase 2: Question Phase
   useEffect(() => {
@@ -486,18 +500,30 @@ export default function GamePage() {
           clearTimeout(resultsTimeoutRef.current);
         }
         
-        // Set a timeout to advance to next turn after showing results
-        resultsTimeoutRef.current = setTimeout(() => {
-          setGamePhase('dice');
-          setCurrentQuestion(null);
-          setHasAnswered(false);
-          setMyResult(null);
-          lastQuestionIdRef.current = null;
-          
-          // Force React to re-render by updating render key
-          setRenderKey(prev => prev + 1);
-          resultsTimeoutRef.current = null;
-        }, 2000); // Show results for 2 seconds
+        // Check if this is the final round (round 10)
+        const isFinalRound = (session?.current_turn || 0) >= 10;
+        
+        if (isFinalRound) {
+          // After final round, wait a bit then show completion screen
+          resultsTimeoutRef.current = setTimeout(() => {
+            setGamePhase('completed');
+            setGameCompleted(true);
+            resultsTimeoutRef.current = null;
+          }, 3000); // Show results for 3 seconds before completion screen
+        } else {
+          // Set a timeout to advance to next turn after showing results
+          resultsTimeoutRef.current = setTimeout(() => {
+            setGamePhase('dice');
+            setCurrentQuestion(null);
+            setHasAnswered(false);
+            setMyResult(null);
+            lastQuestionIdRef.current = null;
+            
+            // Force React to re-render by updating render key
+            setRenderKey(prev => prev + 1);
+            resultsTimeoutRef.current = null;
+          }, 2000); // Show results for 2 seconds
+        }
       } else {
         // Still waiting for other players
         setGamePhase('answering');
@@ -649,10 +675,172 @@ export default function GamePage() {
     }
   };
 
+  const returnToLobby = () => {
+    router.push('/');
+  };
+
+  const startNewGame = async () => {
+    if (!session) return;
+    
+    try {
+      setLoading(true);
+      
+      // Leave current room
+      await fetch('/api/rooms/leave', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomId: session.room_id }),
+      });
+      
+      // Redirect to create room page
+      router.push('/room/create');
+    } catch (err) {
+      console.error('Start new game error:', err);
+      alert('Failed to start new game. Redirecting to lobby...');
+      router.push('/');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Get winner (player with highest score)
+  const getWinner = () => {
+    if (!players || players.length === 0) return null;
+    const sortedPlayers = [...players].sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      // Tiebreaker: earliest join (lowest room_player_id)
+      return a.room_player_id.localeCompare(b.room_player_id);
+    });
+    return sortedPlayers[0];
+  };
+
   if (!session || !currentPlayer) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center">
         <div className="text-white text-xl">Loading game...</div>
+      </div>
+    );
+  }
+
+  // Show completion screen if game is completed
+  if (gamePhase === 'completed' || session.status === 'completed') {
+    // First, sort by join order to get consistent player numbers
+    const playersByJoinOrder = [...players].sort((a, b) => 
+      a.room_player_id.localeCompare(b.room_player_id)
+    );
+    
+    // Create a map of player IDs to their join order (player numbers)
+    const playerNumbers = new Map(
+      playersByJoinOrder.map((player, index) => [player.room_player_id, index + 1])
+    );
+    
+    // Then sort by score for display
+    const sortedPlayers = [...players].sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.room_player_id.localeCompare(b.room_player_id);
+    });
+    
+    const winner = sortedPlayers[0]; // Highest score
+    const isWinner = winner && currentPlayer && winner.room_player_id === currentPlayer.room_player_id;
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 p-4 flex items-center justify-center">
+        <div className="max-w-4xl w-full">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 md:p-12">
+            {/* Winner Announcement */}
+            <div className="text-center mb-8">
+              <div className="text-6xl mb-4">🎉</div>
+              <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-2">
+                Game Complete!
+              </h1>
+              {winner && (
+                <div className={`mt-6 p-6 rounded-xl ${
+                  isWinner 
+                    ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-white' 
+                    : 'bg-gray-100 text-gray-800'
+                }`}>
+                  <div className="text-2xl font-bold mb-2">
+                    {isWinner ? '🏆 You Won!' : '🏆 Winner'}
+                  </div>
+                  <div className="text-xl">
+                    {isWinner 
+                      ? 'You' 
+                      : `Player ${playerNumbers.get(winner.room_player_id) || 1}`}
+                  </div>
+                  <div className="text-3xl font-bold mt-2">
+                    {winner.score} points
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Final Leaderboard */}
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4 text-center">
+                Final Scores
+              </h2>
+              <div className="space-y-3">
+                {sortedPlayers.map((player, index) => {
+                  const isCurrentPlayer = player.room_player_id === currentPlayer?.room_player_id;
+                  const isWinningPlayer = winner && player.room_player_id === winner.room_player_id;
+                  
+                  return (
+                    <div
+                      key={player.room_player_id}
+                      className={`p-4 rounded-lg border-2 flex items-center justify-between ${
+                        isWinningPlayer
+                          ? 'bg-gradient-to-r from-yellow-50 to-orange-50 border-yellow-400'
+                          : isCurrentPlayer
+                          ? 'bg-blue-50 border-blue-300'
+                          : 'bg-gray-50 border-gray-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg ${
+                          isWinningPlayer
+                            ? 'bg-yellow-400 text-white'
+                            : isCurrentPlayer
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-gray-300 text-gray-700'
+                        }`}>
+                          {index + 1}
+                        </div>
+                        <div>
+                          <div className="font-semibold text-gray-900">
+                            {isCurrentPlayer ? 'You' : `Player ${playerNumbers.get(player.room_player_id) || index + 1}`}
+                            {isWinningPlayer && <span className="ml-2">👑</span>}
+                            {isCurrentPlayer && !isWinningPlayer && <span className="ml-2 text-sm text-gray-500">(You)</span>}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-2xl font-bold text-gray-900">
+                        {player.score} pts
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <button
+                onClick={returnToLobby}
+                disabled={loading}
+                className="px-8 py-4 bg-gray-600 text-white rounded-lg font-semibold hover:bg-gray-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors text-lg"
+              >
+                Return to Lobby
+              </button>
+              <button
+                onClick={startNewGame}
+                disabled={loading}
+                className="px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-lg"
+              >
+                {loading ? 'Loading...' : 'Start New Game'}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
