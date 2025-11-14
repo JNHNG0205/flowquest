@@ -277,12 +277,20 @@ export default function GamePage() {
       const actualPreviousPosition = previousPosition === 0 ? 1 : previousPosition;
 
       // Strict validation: new position must be 1-6 spaces ahead of previous position
-      const positionDifference = tilePosition - actualPreviousPosition;
+      // Account for board wrapping (36 positions total, circular board)
+      const BOARD_SIZE = 36;
+      let positionDifference = tilePosition - actualPreviousPosition;
       
+      // Handle wrapping: if negative, add board size to get wrapped distance
+      if (positionDifference < 0) {
+        positionDifference = positionDifference + BOARD_SIZE;
+      }
+      
+      // Check if move is valid (1-6 spaces, accounting for wrapping)
       if (positionDifference < 1 || positionDifference > 6) {
         alert(
           `Invalid move! You can only move 1-6 spaces from your current position (${actualPreviousPosition}). ` +
-          `You tried to move to position ${tilePosition} (${positionDifference > 0 ? '+' : ''}${positionDifference} spaces). ` +
+          `You tried to move to position ${tilePosition} (${positionDifference} spaces). ` +
           `Please scan the correct tile.`
         );
         setTimeout(() => setShowScanner(true), 500);

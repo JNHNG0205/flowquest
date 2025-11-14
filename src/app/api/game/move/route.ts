@@ -59,13 +59,21 @@ export async function POST(request: NextRequest) {
     const actualPreviousPosition = previousPosition === 0 ? 1 : previousPosition;
 
     // Strict validation: new position must be 1-6 spaces ahead of previous position
-    const positionDifference = position - actualPreviousPosition;
+    // Account for board wrapping (36 positions total, circular board)
+    const BOARD_SIZE = 36;
+    let positionDifference = position - actualPreviousPosition;
     
+    // Handle wrapping: if negative, add board size to get wrapped distance
+    if (positionDifference < 0) {
+      positionDifference = positionDifference + BOARD_SIZE;
+    }
+    
+    // Check if move is valid (1-6 spaces, accounting for wrapping)
     if (positionDifference < 1 || positionDifference > 6) {
       return NextResponse.json(
         { 
           error: `Invalid move! You can only move 1-6 spaces from your current position (${actualPreviousPosition}). ` +
-                  `You tried to move to position ${position} (${positionDifference > 0 ? '+' : ''}${positionDifference} spaces).`
+                  `You tried to move to position ${position} (${positionDifference} spaces).`
         },
         { status: 400 }
       );
