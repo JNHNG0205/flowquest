@@ -8,10 +8,15 @@ interface ScoreboardProps {
 }
 
 export function Scoreboard({ players, currentPlayerId }: ScoreboardProps) {
+  // First, sort players by join order (room_player_id) to ensure consistent player numbers
+  const playersByJoinOrder = [...players].sort((a, b) => 
+    a.room_player_id.localeCompare(b.room_player_id)
+  );
+  
   // Create a map of player IDs to their join order (player numbers)
-  // Players are passed in join order, so we preserve that
+  // Player number is based on join order (room_player_id), not array position
   const playerNumbers = new Map(
-    players.map((player, index) => [player.room_player_id, index + 1])
+    playersByJoinOrder.map((player, index) => [player.room_player_id, index + 1])
   );
 
   // Sort by score for display, but keep original player numbers

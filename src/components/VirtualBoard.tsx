@@ -120,9 +120,13 @@ export function VirtualBoard({ players, currentPlayerId }: VirtualBoardProps) {
     return colors[playerIndex % colors.length];
   };
 
-  // Get player number (1-based index)
+  // Get player number (1-based index) based on join order (room_player_id)
   const getPlayerNumber = (playerId: string) => {
-    const index = players.findIndex(p => p.room_player_id === playerId);
+    // Sort players by join order to get consistent player numbers
+    const sortedPlayers = [...players].sort((a, b) => 
+      a.room_player_id.localeCompare(b.room_player_id)
+    );
+    const index = sortedPlayers.findIndex(p => p.room_player_id === playerId);
     return index + 1;
   };
 
